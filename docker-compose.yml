@@ -154,6 +154,32 @@ services:
       - court-sim-network
     restart: unless-stopped
 
+  # MCP Lawyer Server
+  mcp-lawyer-server:
+    build:
+      context: .
+      dockerfile: mcp_lawyer_server/Dockerfile
+    container_name: mcp-lawyer-server
+    ports:
+      - "3000:3000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MCP_CONFIG_PATH=/app/mcp_lawyer_server/config.yaml
+      - GRAPHRAG_BASE_URL=http://app:8000
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    env_file:
+      - .env
+    volumes:
+      - ./mcp_lawyer_server:/app/mcp_lawyer_server
+    depends_on:
+      - app
+      - redis
+    networks:
+      - court-sim-network
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+
 networks:
   court-sim-network:
     driver: bridge

@@ -1,0 +1,82 @@
+# Configuration for MCP Case Extractor Server
+
+# OpenAI API configuration
+openai_api_key: ${OPENAI_API_KEY}  # Set via environment variable
+
+# Chatbox agent configuration
+chatbox:
+  max_questions: 15
+  confidence_threshold: 0.7
+  model: gpt-4-turbo-preview
+  temperature: 0.1
+  
+# File parser configuration  
+parser:
+  max_file_size: 10485760  # 10MB
+  enable_ocr: false  # Enable OCR for scanned documents
+  supported_formats:
+    - .pdf
+    - .docx
+    - .doc
+    - .txt
+    - .html
+    - .htm
+  
+# Validation configuration
+validation:
+  default_level: standard  # minimal, basic, standard, complete
+  required_confidence: 0.6
+  
+# Integration configurations
+integrations:
+  # Info fetcher integration
+  info_fetcher:
+    url: ${INFO_FETCHER_URL:-http://localhost:8080}
+    api_key: ${INFO_FETCHER_API_KEY}
+    timeout: 30
+    max_retries: 3
+    
+  # GraphRAG integration  
+  graphrag:
+    url: ${GRAPHRAG_URL:-http://localhost:8081}
+    api_key: ${GRAPHRAG_API_KEY}
+    
+# Server configuration
+server:
+  host: localhost
+  port: 5050
+  log_level: INFO
+  max_sessions: 100
+  session_timeout: 3600  # 1 hour in seconds
+  
+# Feature flags
+features:
+  enable_llm_extraction: true
+  enable_pattern_extraction: true
+  enable_auto_merge: true
+  enable_similarity_search: true
+  
+# Extraction settings
+extraction:
+  # Priority order for fields in chatbox
+  field_priority:
+    - case_title
+    - case_type
+    - parties
+    - legal_issues
+    - case_number
+    - court_info
+    - filing_date
+    - fact_summary
+    - relief_sought
+    - case_stage
+    - disputed_facts
+    - document_references
+    
+  # Confidence score weights
+  confidence_weights:
+    completeness: 0.6
+    field_ratio: 0.4
+    
+  # Merge strategies
+  default_merge_strategy: combine  # prefer_chatbox, prefer_document, combine

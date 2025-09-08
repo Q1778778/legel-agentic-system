@@ -1,0 +1,14 @@
+# MCP Server Dependencies
+mcp>=0.9.0
+httpx>=0.25.0
+openai>=1.0.0
+pydantic>=2.0.0
+structlog>=23.1.0
+asyncio>=3.4.3
+python-dotenv>=1.0.0
+pyyaml>=6.0.1
+typing-extensions>=4.8.0
+uvloop>=0.19.0  # For better async performance on Unix
+aiofiles>=23.2.1
+tenacity>=8.2.3  # For retry logic
+cachetools>=5.3.2  # For caching
