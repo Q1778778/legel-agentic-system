@@ -8,7 +8,7 @@ from .lawyer_agents import (
 )
 from .orchestrator import DebateOrchestrator
 from .workflow_engine import WorkflowEngine
-from .websocket_manager import WebSocketManager
+from .websocket_manager import WebSocketManager, ws_manager
 
 __all__ = [
     "ProsecutorAgent",
@@ -17,5 +17,6 @@ __all__ = [
     "LawyerAgent",
     "DebateOrchestrator",
     "WorkflowEngine",
-    "WebSocketManager"
+    "WebSocketManager",
+    "ws_manager"
 ]
