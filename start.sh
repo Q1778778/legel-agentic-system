@@ -39,12 +39,9 @@ check_command() {
 
 # Cleanup function
 cleanup() {
-    print_info "Stopping services..."
-    docker-compose -f docker-compose.fast.yml down
-    if [ ! -z "$STREAMLIT_PID" ]; then
-        kill $STREAMLIT_PID 2>/dev/null || true
-    fi
-    print_success "Services stopped"
+    print_info "Stopping backend services..."
+    docker compose -f docker-compose.fast.yml stop  # Changed from 'down' to 'stop' to keep containers
+    print_success "Backend services stopped (containers preserved for debugging)"
 }
 
 # Set cleanup hook
@@ -60,9 +57,6 @@ main() {
     # Check required commands
     print_info "Checking system environment..."
     check_command docker
-    check_command docker-compose
-    check_command python3
-    check_command streamlit
     print_success "Environment check passed"
     echo
 
@@ -81,15 +75,15 @@ main() {
         fi
     fi
 
-    # Stop any existing containers
-    print_info "Cleaning up old containers..."
-    docker-compose -f docker-compose.fast.yml down 2>/dev/null || true
-    print_success "Cleanup completed"
+    # Stop any existing containers (but keep them for debugging)
+    print_info "Stopping any running containers..."
+    docker compose -f docker-compose.fast.yml stop 2>/dev/null || true
+    print_success "Containers stopped (preserved for debugging)"
     echo
 
     # Start Docker services
     print_info "Starting backend services (Docker)..."
-    docker-compose -f docker-compose.fast.yml up -d --build
+    docker compose -f docker-compose.fast.yml up -d --build
     
     # Wait for services to start
     print_info "Waiting for services to start..."
@@ -110,6 +104,13 @@ main() {
     if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
         print_error "Backend services failed to start. Please check logs:"
         echo "docker logs court-argument-simulator"
+        echo ""
+        echo "Container is preserved for debugging. To check logs:"
+        echo "  docker logs court-argument-simulator"
+        echo "  docker ps -a  # to see all containers"
+        echo ""
+        echo "To remove containers manually:"
+        echo "  docker compose -f docker-compose.fast.yml down"
         exit 1
     fi
 
@@ -118,46 +119,34 @@ main() {
     docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "court-sim|court-argument" || true
     echo
 
-    # Start Streamlit frontend
-    print_info "Starting frontend service (Streamlit)..."
-    streamlit run web_app.py --server.port 8501 --server.headless true &
-    STREAMLIT_PID=$!
-    
-    # Wait for Streamlit to start
-    sleep 3
-    
-    # Check if Streamlit started successfully
-    if ! ps -p $STREAMLIT_PID > /dev/null; then
-        print_error "Streamlit failed to start"
-        exit 1
-    fi
-    
-    print_success "Frontend service started successfully"
-    echo
 
     # Display access information
     echo "======================================"
-    print_success "System startup complete!"
+    print_success "Backend API startup complete!"
     echo "======================================"
     echo
-    echo "Access URLs:"
-    echo "  - Frontend UI: http://localhost:8501"
+    echo "API Access:"
+    echo "  - Backend API: http://localhost:8000"
     echo "  - API Documentation: http://localhost:8000/docs"
+    echo "  - React Frontend: http://localhost:3000 (run separately)"
+    echo
+    echo "Database Access:"
     echo "  - Neo4j Browser: http://localhost:7474"
     echo "  - Qdrant Dashboard: http://localhost:6333/dashboard"
     echo
     echo "View logs:"
     echo "  - Backend logs: docker logs -f court-argument-simulator"
-    echo "  - All containers: docker-compose -f docker-compose.fast.yml logs -f"
+    echo "  - All containers: docker compose -f docker-compose.fast.yml logs -f"
     echo
     echo "Stop services:"
-    echo "  - Press Ctrl+C to stop all services"
-    echo "  - Or run: ./stop.sh"
+    echo "  - Press Ctrl+C to stop backend services"
     echo
-    print_info "Frontend is running, press Ctrl+C to stop..."
+    print_info "Backend API is running, press Ctrl+C to stop..."
     
-    # Wait for user interrupt
-    wait $STREAMLIT_PID
+    # Keep script running until interrupted
+    while true; do
+        sleep 1
+    done
 }
 
 # Run main function

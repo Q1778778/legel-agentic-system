@@ -75,7 +75,6 @@ class SystemInitializer:
             print("\n💡 Next steps:")
             print("   1. Run: python scripts/import_data.py (to load sample data)")
             print("   2. Run: python -m uvicorn src.main:app --reload (to start the API server)")
-            print("   3. Run: streamlit run web_app.py (to start the web interface)")
         else:
             print("❌ System initialization failed!")
             print("   Please check the error messages above and fix the issues.")

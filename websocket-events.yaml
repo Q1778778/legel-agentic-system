@@ -1,0 +1,756 @@
+# WebSocket Event Schemas for Legal Argumentation Service
+# This document defines all WebSocket event types and their schemas
+
+websocket:
+  url: wss://api.legalargs.com/v1/ws
+  protocols:
+    - websocket
+    - socket.io
+  description: |
+    Real-time event stream for workflow updates, argument generation progress,
+    and debate interactions. Supports both raw WebSocket and Socket.IO protocols.
+
+connection:
+  authentication:
+    description: Authentication must be performed immediately after connection
+    request:
+      event: auth
+      data:
+        type: object
+        required:
+          - token
+        properties:
+          token:
+            type: string
+            description: JWT token or API key
+          client_id:
+            type: string
+            description: Optional client identifier for session tracking
+
+    response:
+      event: auth_result
+      data:
+        type: object
+        required:
+          - success
+        properties:
+          success:
+            type: boolean
+          session_id:
+            type: string
+            format: uuid
+          error:
+            type: string
+
+  subscription:
+    description: Subscribe to specific event channels
+    request:
+      event: subscribe
+      data:
+        type: object
+        required:
+          - channels
+        properties:
+          channels:
+            type: array
+            items:
+              type: object
+              required:
+                - type
+                - id
+              properties:
+                type:
+                  type: string
+                  enum: [workflow, debate, agent, global]
+                id:
+                  type: string
+                  description: Resource ID (workflow_id, debate_id, etc.)
+
+    response:
+      event: subscription_confirmed
+      data:
+        type: object
+        properties:
+          subscribed_channels:
+            type: array
+            items:
+              type: string
+
+events:
+  # Workflow Events
+  workflow:
+    status_changed:
+      event: workflow.status_changed
+      description: Workflow status has changed
+      data:
+        type: object
+        required:
+          - workflow_id
+          - status
+          - previous_status
+          - timestamp
+        properties:
+          workflow_id:
+            type: string
+            format: uuid
+          status:
+            type: string
+            enum: [pending, running, completed, failed, cancelled]
+          previous_status:
+            type: string
+          progress:
+            type: integer
+            minimum: 0
+            maximum: 100
+          current_step:
+            type: string
+          timestamp:
+            type: string
+            format: date-time
+
+    step_started:
+      event: workflow.step_started
+      description: A workflow step has started
+      data:
+        type: object
+        required:
+          - workflow_id
+          - step_name
+          - step_number
+          - total_steps
+        properties:
+          workflow_id:
+            type: string
+            format: uuid
+          step_name:
+            type: string
+          step_number:
+            type: integer
+          total_steps:
+            type: integer
+          estimated_duration_ms:
+            type: integer
+
+    step_completed:
+      event: workflow.step_completed
+      description: A workflow step has completed
+      data:
+        type: object
+        required:
+          - workflow_id
+          - step_name
+          - step_number
+          - duration_ms
+        properties:
+          workflow_id:
+            type: string
+            format: uuid
+          step_name:
+            type: string
+          step_number:
+            type: integer
+          duration_ms:
+            type: integer
+          result_summary:
+            type: string
+
+    error:
+      event: workflow.error
+      description: An error occurred in the workflow
+      data:
+        type: object
+        required:
+          - workflow_id
+          - error_code
+          - message
+        properties:
+          workflow_id:
+            type: string
+            format: uuid
+          error_code:
+            type: string
+          message:
+            type: string
+          step_name:
+            type: string
+          recoverable:
+            type: boolean
+          retry_count:
+            type: integer
+
+  # Agent Events
+  agent:
+    thinking_started:
+      event: agent.thinking_started
+      description: Agent has started processing
+      data:
+        type: object
+        required:
+          - agent_id
+          - agent_type
+          - task_description
+        properties:
+          agent_id:
+            type: string
+          agent_type:
+            type: string
+            enum: [analyzer, generator, debater, judge, orchestrator]
+          task_description:
+            type: string
+          workflow_id:
+            type: string
+            format: uuid
+          estimated_duration_ms:
+            type: integer
+
+    thought_stream:
+      event: agent.thought_stream
+      description: Stream of agent's thinking process
+      data:
+        type: object
+        required:
+          - agent_id
+          - thought_fragment
+          - sequence_number
+        properties:
+          agent_id:
+            type: string
+          thought_fragment:
+            type: string
+          sequence_number:
+            type: integer
+          reasoning_type:
+            type: string
+            enum: [analysis, synthesis, evaluation, planning]
+          confidence:
+            type: number
+            minimum: 0
+            maximum: 1
+
+    decision_made:
+      event: agent.decision_made
+      description: Agent has made a decision
+      data:
+        type: object
+        required:
+          - agent_id
+          - decision_type
+          - decision
+        properties:
+          agent_id:
+            type: string
+          decision_type:
+            type: string
+          decision:
+            type: object
+          confidence:
+            type: number
+          reasoning_chain:
+            type: array
+            items:
+              type: string
+
+    state_changed:
+      event: agent.state_changed
+      description: Agent state has changed
+      data:
+        type: object
+        required:
+          - agent_id
+          - new_state
+          - previous_state
+        properties:
+          agent_id:
+            type: string
+          new_state:
+            type: string
+            enum: [idle, thinking, processing, waiting, error]
+          previous_state:
+            type: string
+          context:
+            type: object
+
+  # Argument Generation Events
+  argument:
+    generation_started:
+      event: argument.generation_started
+      description: Argument generation has started
+      data:
+        type: object
+        required:
+          - request_id
+          - stance
+        properties:
+          request_id:
+            type: string
+            format: uuid
+          stance:
+            type: string
+            enum: [defense, prosecution, neutral]
+          context_summary:
+            type: string
+
+    token_stream:
+      event: argument.token_stream
+      description: Streaming tokens of generated argument
+      data:
+        type: object
+        required:
+          - request_id
+          - token
+          - position
+        properties:
+          request_id:
+            type: string
+            format: uuid
+          token:
+            type: string
+          position:
+            type: integer
+          section:
+            type: string
+            enum: [introduction, issue, rule, application, conclusion]
+
+    citation_found:
+      event: argument.citation_found
+      description: Citation identified during generation
+      data:
+        type: object
+        required:
+          - request_id
+          - citation_text
+          - relevance_score
+        properties:
+          request_id:
+            type: string
+            format: uuid
+          citation_text:
+            type: string
+          citation_type:
+            type: string
+            enum: [case, statute, regulation, rule]
+          relevance_score:
+            type: number
+          position_in_text:
+            type: integer
+
+    generation_completed:
+      event: argument.generation_completed
+      description: Argument generation completed
+      data:
+        type: object
+        required:
+          - request_id
+          - argument_id
+          - total_tokens
+          - duration_ms
+        properties:
+          request_id:
+            type: string
+            format: uuid
+          argument_id:
+            type: string
+            format: uuid
+          total_tokens:
+            type: integer
+          duration_ms:
+            type: integer
+          confidence_score:
+            type: number
+          citations_count:
+            type: integer
+
+  # Debate Events
+  debate:
+    turn_started:
+      event: debate.turn_started
+      description: A debate turn has started
+      data:
+        type: object
+        required:
+          - debate_id
+          - turn_number
+          - speaker
+          - speaker_type
+        properties:
+          debate_id:
+            type: string
+            format: uuid
+          turn_number:
+            type: integer
+          speaker:
+            type: string
+          speaker_type:
+            type: string
+            enum: [lawyer1, lawyer2, judge]
+          time_limit_seconds:
+            type: integer
+
+    speech_stream:
+      event: debate.speech_stream
+      description: Streaming speech during debate turn
+      data:
+        type: object
+        required:
+          - debate_id
+          - turn_number
+          - text_fragment
+          - position
+        properties:
+          debate_id:
+            type: string
+            format: uuid
+          turn_number:
+            type: integer
+          text_fragment:
+            type: string
+          position:
+            type: integer
+          emphasis:
+            type: string
+            enum: [normal, strong, question]
+
+    judge_interruption:
+      event: debate.judge_interruption
+      description: Judge interrupts with a question
+      data:
+        type: object
+        required:
+          - debate_id
+          - question
+          - directed_to
+        properties:
+          debate_id:
+            type: string
+            format: uuid
+          question:
+            type: string
+          directed_to:
+            type: string
+            enum: [lawyer1, lawyer2, both]
+          severity:
+            type: string
+            enum: [clarification, challenge, warning]
+
+    turn_completed:
+      event: debate.turn_completed
+      description: A debate turn has completed
+      data:
+        type: object
+        required:
+          - debate_id
+          - turn_number
+          - speaker
+          - duration_seconds
+        properties:
+          debate_id:
+            type: string
+            format: uuid
+          turn_number:
+            type: integer
+          speaker:
+            type: string
+          duration_seconds:
+            type: integer
+          word_count:
+            type: integer
+          citations_used:
+            type: integer
+
+    scoring_update:
+      event: debate.scoring_update
+      description: Real-time scoring update
+      data:
+        type: object
+        required:
+          - debate_id
+          - current_scores
+        properties:
+          debate_id:
+            type: string
+            format: uuid
+          current_scores:
+            type: object
+            properties:
+              lawyer1:
+                type: number
+              lawyer2:
+                type: number
+          scoring_factors:
+            type: object
+            properties:
+              argumentation:
+                type: object
+              citations:
+                type: object
+              responsiveness:
+                type: object
+
+    debate_ended:
+      event: debate.debate_ended
+      description: Debate has ended
+      data:
+        type: object
+        required:
+          - debate_id
+          - final_scores
+          - winner
+        properties:
+          debate_id:
+            type: string
+            format: uuid
+          final_scores:
+            type: object
+          winner:
+            type: string
+          summary:
+            type: string
+          key_moments:
+            type: array
+            items:
+              type: object
+              properties:
+                turn_number:
+                  type: integer
+                description:
+                  type: string
+                impact:
+                  type: string
+
+  # Retrieval Events
+  retrieval:
+    search_started:
+      event: retrieval.search_started
+      description: GraphRAG search initiated
+      data:
+        type: object
+        required:
+          - search_id
+          - query
+        properties:
+          search_id:
+            type: string
+            format: uuid
+          query:
+            type: string
+          filters_applied:
+            type: object
+          estimated_results:
+            type: integer
+
+    graph_traversal:
+      event: retrieval.graph_traversal
+      description: Graph traversal progress
+      data:
+        type: object
+        required:
+          - search_id
+          - current_node
+          - depth
+        properties:
+          search_id:
+            type: string
+            format: uuid
+          current_node:
+            type: string
+          node_type:
+            type: string
+          depth:
+            type: integer
+          relationships_explored:
+            type: integer
+          candidates_found:
+            type: integer
+
+    result_found:
+      event: retrieval.result_found
+      description: Relevant result found
+      data:
+        type: object
+        required:
+          - search_id
+          - result_id
+          - relevance_score
+        properties:
+          search_id:
+            type: string
+            format: uuid
+          result_id:
+            type: string
+          result_type:
+            type: string
+          relevance_score:
+            type: number
+          preview:
+            type: string
+
+    search_completed:
+      event: retrieval.search_completed
+      description: Search completed
+      data:
+        type: object
+        required:
+          - search_id
+          - total_results
+          - duration_ms
+        properties:
+          search_id:
+            type: string
+            format: uuid
+          total_results:
+            type: integer
+          duration_ms:
+            type: integer
+          nodes_traversed:
+            type: integer
+          confidence_score:
+            type: number
+
+  # Feedback Events
+  feedback:
+    feedback_requested:
+      event: feedback.requested
+      description: System requests user feedback
+      data:
+        type: object
+        required:
+          - feedback_id
+          - target_type
+          - target_id
+        properties:
+          feedback_id:
+            type: string
+            format: uuid
+          target_type:
+            type: string
+            enum: [argument, debate_turn, workflow_result]
+          target_id:
+            type: string
+          question:
+            type: string
+          options:
+            type: array
+            items:
+              type: string
+
+    feedback_received:
+      event: feedback.received
+      description: User feedback received
+      data:
+        type: object
+        required:
+          - feedback_id
+          - response
+        properties:
+          feedback_id:
+            type: string
+            format: uuid
+          response:
+            type: object
+          timestamp:
+            type: string
+            format: date-time
+
+  # System Events
+  system:
+    heartbeat:
+      event: system.heartbeat
+      description: Keep-alive signal
+      data:
+        type: object
+        required:
+          - timestamp
+        properties:
+          timestamp:
+            type: string
+            format: date-time
+          server_time_ms:
+            type: integer
+
+    notification:
+      event: system.notification
+      description: System notification
+      data:
+        type: object
+        required:
+          - level
+          - message
+        properties:
+          level:
+            type: string
+            enum: [info, warning, error]
+          message:
+            type: string
+          action_required:
+            type: boolean
+          expires_at:
+            type: string
+            format: date-time
+
+    rate_limit_warning:
+      event: system.rate_limit_warning
+      description: Approaching rate limit
+      data:
+        type: object
+        required:
+          - limit
+          - remaining
+          - reset_at
+        properties:
+          limit:
+            type: integer
+          remaining:
+            type: integer
+          reset_at:
+            type: string
+            format: date-time
+          throttle_percentage:
+            type: number
+
+error_handling:
+  reconnection:
+    description: Automatic reconnection with exponential backoff
+    max_attempts: 5
+    base_delay_ms: 1000
+    max_delay_ms: 30000
+
+  error_codes:
+    - code: 1000
+      name: NORMAL_CLOSURE
+      description: Normal connection closure
+    - code: 1001
+      name: GOING_AWAY
+      description: Server going down
+    - code: 1002
+      name: PROTOCOL_ERROR
+      description: Protocol error
+    - code: 1003
+      name: UNSUPPORTED_DATA
+      description: Unsupported data type
+    - code: 1006
+      name: ABNORMAL_CLOSURE
+      description: Abnormal closure
+    - code: 1007
+      name: INVALID_PAYLOAD
+      description: Invalid payload data
+    - code: 1008
+      name: POLICY_VIOLATION
+      description: Policy violation
+    - code: 1009
+      name: MESSAGE_TOO_BIG
+      description: Message too large
+    - code: 1011
+      name: INTERNAL_ERROR
+      description: Internal server error
+    - code: 4000
+      name: AUTH_FAILED
+      description: Authentication failed
+    - code: 4001
+      name: UNAUTHORIZED
+      description: Unauthorized access
+    - code: 4002
+      name: RATE_LIMITED
+      description: Rate limit exceeded
+    - code: 4003
+      name: INVALID_SUBSCRIPTION
+      description: Invalid subscription request

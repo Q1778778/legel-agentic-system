@@ -1,0 +1,277 @@
+openapi: 3.0.3
+info:
+  title: Legal Argumentation Service API
+  description: API for legal argument analysis and debate orchestration (localhost deployment)
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000/api
+    description: Local development server
+
+paths:
+  /workflows:
+    post:
+      summary: Create a new workflow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowCreate'
+      responses:
+        '201':
+          description: Workflow created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflow'
+    
+    get:
+      summary: List all workflows
+      responses:
+        '200':
+          description: List of workflows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Workflow'
+  
+  /workflows/{workflowId}:
+    get:
+      summary: Get workflow details
+      parameters:
+        - name: workflowId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Workflow details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflow'
+  
+  /workflows/{workflowId}/execute:
+    post:
+      summary: Execute a workflow
+      parameters:
+        - name: workflowId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '202':
+          description: Workflow execution started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  websocket_url:
+                    type: string
+                    description: WebSocket URL for real-time updates
+  
+  /arguments/analyze:
+    post:
+      summary: Analyze a single legal argument
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArgumentAnalysis'
+      responses:
+        '200':
+          description: Analysis complete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisResult'
+  
+  /debates:
+    post:
+      summary: Create a debate session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DebateCreate'
+      responses:
+        '201':
+          description: Debate session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DebateSession'
+  
+  /debates/{debateId}/start:
+    post:
+      summary: Start a debate
+      parameters:
+        - name: debateId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '202':
+          description: Debate started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  websocket_url:
+                    type: string
+
+components:
+  schemas:
+    WorkflowCreate:
+      type: object
+      required:
+        - mode
+        - input
+      properties:
+        mode:
+          type: string
+          enum: [single, debate]
+          description: Workflow mode
+        input:
+          type: object
+          properties:
+            argument:
+              type: string
+              description: Legal argument for single mode
+            case_context:
+              type: string
+              description: Case context for debate mode
+            prosecution_strategy:
+              type: string
+              description: Prosecution strategy for debate mode
+    
+    Workflow:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        mode:
+          type: string
+          enum: [single, debate]
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        steps:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              status:
+                type: string
+              progress:
+                type: number
+    
+    ArgumentAnalysis:
+      type: object
+      required:
+        - argument
+      properties:
+        argument:
+          type: string
+          description: The legal argument to analyze
+        context:
+          type: string
+          description: Optional case context
+    
+    AnalysisResult:
+      type: object
+      properties:
+        strengths:
+          type: array
+          items:
+            type: string
+        weaknesses:
+          type: array
+          items:
+            type: string
+        recommendations:
+          type: array
+          items:
+            type: string
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+    
+    DebateCreate:
+      type: object
+      required:
+        - case_context
+      properties:
+        case_context:
+          type: string
+          description: Case context for the debate
+        prosecution_strategy:
+          type: string
+          description: Prosecution's planned approach
+        defense_strategy:
+          type: string
+          description: Defense's planned approach
+        max_turns:
+          type: integer
+          default: 5
+          description: Maximum number of debate turns
+    
+    DebateSession:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [created, running, completed]
+        created_at:
+          type: string
+          format: date-time
+        turns:
+          type: array
+          items:
+            type: object
+            properties:
+              turn_number:
+                type: integer
+              prosecutor:
+                type: object
+                properties:
+                  argument:
+                    type: string
+                  thinking:
+                    type: string
+              defender:
+                type: object
+                properties:
+                  response:
+                    type: string
+                  thinking:
+                    type: string

@@ -1,4 +1,4 @@
-"""Main FastAPI application for Legal Analysis System."""
+"""Main FastAPI application for Court Argument Simulator."""
 
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,7 +10,7 @@ from prometheus_client import make_asgi_app, Counter, Histogram
 import time
 
 from .core.config import settings
-from .api import retrieval, legal_analysis, health, metrics, smart_analysis, simple_analysis
+from .api import retrieval, health, metrics, agents, workflows, websocket, legal_workflow, legal_analysis, legacy_redirect
 from .db.graph_db import GraphDB
 
 # Configure structured logging
@@ -50,7 +50,7 @@ request_duration = Histogram(
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     # Startup
-    logger.info("Starting Legal Analysis System", version="0.1.0")
+    logger.info("Starting Court Argument Simulator", version="0.1.0")
     
     # Initialize database connections
     try:
@@ -63,15 +63,15 @@ async def lifespan(app: FastAPI):
     yield
     
     # Shutdown
-    logger.info("Shutting down Legal Analysis System")
+    logger.info("Shutting down Court Argument Simulator")
     graph_db.close()
 
 
 # Create FastAPI app
 app = FastAPI(
     title="Legal Analysis System",
-    description="Legal analysis system using GraphRAG and Vector search",
-    version="0.1.0",
+    description="AI-powered legal argument analysis and debate system with GraphRAG",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -140,17 +140,11 @@ async def log_requests(request, call_next):
     return response
 
 
-# Include routers
+# Include routers - Core functionality
 app.include_router(
     retrieval.router,
     prefix=f"{settings.api_prefix}/retrieval",
     tags=["retrieval"],
-)
-
-app.include_router(
-    legal_analysis.router,
-    prefix=f"{settings.api_prefix}/analysis",
-    tags=["analysis"],
 )
 
 app.include_router(
@@ -165,16 +159,46 @@ app.include_router(
     tags=["metrics"],
 )
 
+# New legal workflow endpoints (replacing simulation)
 app.include_router(
-    smart_analysis.router,
-    prefix=f"{settings.api_prefix}/smart",
-    tags=["smart"],
+    legal_workflow.router,
+    prefix=f"{settings.api_prefix}/legal",
+    tags=["legal-workflow"],
 )
 
 app.include_router(
-    simple_analysis.router,
+    legal_analysis.router,
+    prefix=f"{settings.api_prefix}/analysis",
+    tags=["legal-analysis"],
+)
+
+app.include_router(
+    agents.router,
+    prefix=f"{settings.api_prefix}/agents",
+    tags=["agents"],
+)
+
+# Include workflow and websocket routers
+app.include_router(workflows.router)
+app.include_router(websocket.router)
+
+# Legacy endpoints for backward compatibility (will redirect to new system)
+app.include_router(
+    legacy_redirect.router,
+    prefix=f"{settings.api_prefix}/simulation",
+    tags=["legacy-simulation"],
+)
+
+app.include_router(
+    legacy_redirect.router,
+    prefix=f"{settings.api_prefix}/smart",
+    tags=["legacy-smart"],
+)
+
+app.include_router(
+    legacy_redirect.router,
     prefix=f"{settings.api_prefix}/simple",
-    tags=["simple"],
+    tags=["legacy-simple"],
 )
 
 
