@@ -62,7 +62,11 @@ main() {
     check_command docker
     check_command docker-compose
     check_command python3
-    check_command streamlit
+    # Check streamlit as a Python module instead of command
+    if ! python3 -m streamlit --version &> /dev/null; then
+        print_error "streamlit is not installed. Please install streamlit first (pip install streamlit)"
+        exit 1
+    fi
     print_success "Environment check passed"
     echo
 
@@ -120,7 +124,7 @@ main() {
 
     # Start Streamlit frontend
     print_info "Starting frontend service (Streamlit)..."
-    streamlit run web_app.py --server.port 8501 --server.headless true &
+    python3 -m streamlit run web_app.py --server.port 8501 --server.headless true &
     STREAMLIT_PID=$!
     
     # Wait for Streamlit to start
