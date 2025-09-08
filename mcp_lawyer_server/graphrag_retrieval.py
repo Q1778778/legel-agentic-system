@@ -212,7 +212,7 @@ class GraphRAGRetrieval:
                     "id": f"case_{i:03d}",
                     "caption": template["caption"],
                     "court": template["court"],
-                    "jurisdiction": jurisdiction or "US",
+                    "jurisdiction": "US",
                     "filed_date": (datetime.now() - timedelta(days=random.randint(30, 365))).isoformat()
                 },
                 "issue": {
@@ -224,7 +224,7 @@ class GraphRAGRetrieval:
                 "metadata": {
                     "outcome": template["outcome"],
                     "judge": f"Judge {random.choice(['Chen', 'Smith', 'Johnson', 'Williams'])}",
-                    "lawyer_id": lawyer_id or f"lawyer_{random.randint(1, 100):03d}"
+                    "lawyer_id": f"lawyer_{random.randint(1, 100):03d}"
                 }
             }
             mock_bundles.append(bundle)

@@ -7,10 +7,11 @@ import httpx
 import structlog
 from tenacity import retry, stop_after_attempt, wait_exponential
 import json
-from openai_agents import Agent, client
+import os
+from agents import Agent, run
 
-from .legal_context import ArgumentContext, LawyerInfo
-from .graphrag_retrieval import GraphRAGRetrieval
+from legal_context import ArgumentContext, LawyerInfo
+from graphrag_retrieval import GraphRAGRetrieval
 
 logger = structlog.get_logger()
 
@@ -43,10 +44,9 @@ class OpponentSimulator:
         
         # Initialize OpenAI Agent for legal reasoning
         self.legal_agent = Agent(
+            name="Legal Analyst",
             model="gpt-4-turbo-preview",
-            instructions="You are an expert legal analyst and opposing counsel simulator. Your task is to identify weaknesses in legal arguments and generate strong counter-arguments based on precedents.",
-            functions=[],
-            tool_choice=None
+            instructions="You are an expert legal analyst and opposing counsel simulator. Your task is to identify weaknesses in legal arguments and generate strong counter-arguments based on precedents."
         )
         
     @retry(
@@ -322,7 +322,7 @@ List 2-3 specific weaknesses:"""
                 ]
                 
                 # Run the agent
-                response = client.run(
+                response = await run(
                     agent=self.legal_agent,
                     messages=messages
                 )
@@ -402,10 +402,9 @@ Response (2-3 paragraphs):"""
 
             # Create a specialized opposing counsel agent
             opposing_agent = Agent(
+                name=f"Opposing Counsel - {counsel_name}",
                 model="gpt-4-turbo-preview",
-                instructions=f"You are {counsel_name}, an experienced {counsel_style} lawyer. You respond as opposing counsel with strong legal arguments based on precedents and exploit weaknesses in the opposing position.",
-                functions=[],
-                tool_choice=None
+                instructions=f"You are {counsel_name}, an experienced {counsel_style} lawyer. You respond as opposing counsel with strong legal arguments based on precedents and exploit weaknesses in the opposing position."
             )
             
             messages = [
@@ -416,7 +415,7 @@ Response (2-3 paragraphs):"""
             ]
             
             # Run the opposing counsel agent
-            response = client.run(
+            response = await run(
                 agent=opposing_agent,
                 messages=messages
             )
@@ -622,10 +621,9 @@ Format each as a brief 2-3 sentence counter-argument."""
 
             # Create counter-argument agent
             counter_agent = Agent(
+                name="Counter Argument Strategist",
                 model="gpt-4-turbo-preview",
-                instructions="You are an expert legal strategist providing strong counter-arguments to opposing counsel's positions.",
-                functions=[],
-                tool_choice=None
+                instructions="You are an expert legal strategist providing strong counter-arguments to opposing counsel's positions."
             )
             
             messages = [
@@ -636,7 +634,7 @@ Format each as a brief 2-3 sentence counter-argument."""
             ]
             
             # Run the counter-argument agent
-            response = client.run(
+            response = await run(
                 agent=counter_agent,
                 messages=messages
             )
