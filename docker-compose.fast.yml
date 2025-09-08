@@ -1,12 +1,10 @@
-version: '3.8'
-
 services:
   # 主应用 - 使用优化的 Dockerfile
   app:
     build:
       context: .
-      dockerfile: Dockerfile.fast  # 使用优化版
-    container_name: court-argument
+      dockerfile: Dockerfile  # 使用优化版
+    container_name: court-argument-simulator
     ports:
       - "8000:8000"
     environment:

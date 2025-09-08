@@ -1,4 +1,4 @@
-"""Data models for Court Argument Simulator."""
+"""Data models for Legal Analysis System."""
 
 from .schemas import (
     ArgumentBundle,
@@ -12,8 +12,8 @@ from .schemas import (
     GraphExplanation,
     RetrievalRequest,
     RetrievalResponse,
-    SimulationRequest,
-    SimulationResponse,
+    AnalysisRequest,
+    AnalysisResponse,
 )
 
 __all__ = [
@@ -28,6 +28,6 @@ __all__ = [
     "GraphExplanation",
     "RetrievalRequest",
     "RetrievalResponse",
-    "SimulationRequest",
-    "SimulationResponse",
+    "AnalysisRequest",
+    "AnalysisResponse",
 ]
