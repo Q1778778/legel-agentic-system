@@ -6,6 +6,9 @@ from typing import List, Dict, Any, Optional
 import structlog
 import time
 from pathlib import Path
+from datetime import datetime, timedelta
+import hashlib
+import random
 
 # Import GraphRAG components
 import subprocess
@@ -109,14 +112,18 @@ class MicrosoftGraphRAGService:
         """
         try:
             # Execute GraphRAG local search via CLI
-            cmd = ["graphrag", "query", "--method", "local", "--query", query]
+            # Note: Using python -m graphrag instead of just graphrag for better compatibility
+            cmd = ["/usr/local/bin/python", "-m", "graphrag", "query", "--method", "local", "--query", query]
+            
+            logger.info(f"Executing GraphRAG local search: {' '.join(cmd[:5])}...")
             
             result = subprocess.run(
                 cmd,
                 cwd=self.graphrag_data_dir,
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=60,
+                env={**os.environ, "PYTHONWARNINGS": "ignore"}  # Suppress warnings
             )
             
             if result.returncode == 0:
@@ -127,19 +134,36 @@ class MicrosoftGraphRAGService:
                 response_lines = []
                 
                 for line in output_lines:
-                    if 'Local Search Response:' in line:
+                    # GraphRAG 2.5.0 outputs the response after this line
+                    if 'Local Search Response:' in line or 'graphrag.cli.query - Local Search Response:' in line:
                         response_started = True
                         continue
-                    if response_started and line.strip():
+                    if response_started:
+                        # Stop at the next log line (if any)
+                        if line.startswith('2025-') or line.startswith('2024-'):
+                            break
                         response_lines.append(line)
                 
-                return '\n'.join(response_lines).strip()
+                response = '\n'.join(response_lines).strip()
+                if response:
+                    logger.info(f"GraphRAG local search successful, response length: {len(response)}")
+                    return response
+                else:
+                    logger.warning("GraphRAG local search returned empty response")
+                    return ""
             else:
-                logger.error(f"GraphRAG local search failed: {result.stderr}")
+                logger.error(f"GraphRAG local search failed with code {result.returncode}")
+                logger.error(f"stderr: {result.stderr[:500]}")  # Log first 500 chars of error
                 return ""
                 
+        except subprocess.TimeoutExpired:
+            logger.error("GraphRAG local search timed out after 60 seconds")
+            return ""
+        except FileNotFoundError:
+            logger.error("GraphRAG command not found. Please ensure graphrag is installed: pip install graphrag")
+            return ""
         except Exception as e:
-            logger.error(f"Local search error: {e}")
+            logger.error(f"Local search error: {type(e).__name__}: {e}")
             return ""
     
     async def _global_search(self, query: str) -> str:
@@ -153,14 +177,18 @@ class MicrosoftGraphRAGService:
         """
         try:
             # Execute GraphRAG global search via CLI
-            cmd = ["graphrag", "query", "--method", "global", "--query", query]
+            # Note: Using python -m graphrag instead of just graphrag for better compatibility
+            cmd = ["/usr/local/bin/python", "-m", "graphrag", "query", "--method", "global", "--query", query]
+            
+            logger.info(f"Executing GraphRAG global search: {' '.join(cmd[:5])}...")
             
             result = subprocess.run(
                 cmd,
                 cwd=self.graphrag_data_dir,
                 capture_output=True,
                 text=True,
-                timeout=90  # Global search takes longer
+                timeout=90,  # Global search takes longer
+                env={**os.environ, "PYTHONWARNINGS": "ignore"}  # Suppress warnings
             )
             
             if result.returncode == 0:
@@ -171,19 +199,36 @@ class MicrosoftGraphRAGService:
                 response_lines = []
                 
                 for line in output_lines:
-                    if 'Global Search Response:' in line:
+                    # GraphRAG 2.5.0 outputs the response after this line
+                    if 'Global Search Response:' in line or 'graphrag.cli.query - Global Search Response:' in line:
                         response_started = True
                         continue
-                    if response_started and line.strip():
+                    if response_started:
+                        # Stop at the next log line (if any)
+                        if line.startswith('2025-') or line.startswith('2024-'):
+                            break
                         response_lines.append(line)
                 
-                return '\n'.join(response_lines).strip()
+                response = '\n'.join(response_lines).strip()
+                if response:
+                    logger.info(f"GraphRAG global search successful, response length: {len(response)}")
+                    return response
+                else:
+                    logger.warning("GraphRAG global search returned empty response")
+                    return ""
             else:
-                logger.error(f"GraphRAG global search failed: {result.stderr}")
+                logger.error(f"GraphRAG global search failed with code {result.returncode}")
+                logger.error(f"stderr: {result.stderr[:500]}")  # Log first 500 chars of error
                 return ""
                 
+        except subprocess.TimeoutExpired:
+            logger.error("GraphRAG global search timed out after 90 seconds")
+            return ""
+        except FileNotFoundError:
+            logger.error("GraphRAG command not found. Please ensure graphrag is installed: pip install graphrag")
+            return ""
         except Exception as e:
-            logger.error(f"Global search error: {e}")
+            logger.error(f"Global search error: {type(e).__name__}: {e}")
             return ""
     
     def _convert_to_argument_bundles(
@@ -231,6 +276,31 @@ class MicrosoftGraphRAGService:
         
         return bundles
     
+    def _extract_citations(self, text: str) -> List[str]:
+        """Extract citations from text.
+        
+        Args:
+            text: Text containing citations
+            
+        Returns:
+            List of citation strings
+        """
+        import re
+        citations = []
+        
+        # Look for patterns like [Source: ...] or [Data: ...]
+        pattern = r'\[(?:Source|Data|Reports|Entities|Relationships):[^\]]+\]'
+        matches = re.findall(pattern, text)
+        citations.extend(matches)
+        
+        # Also look for case names
+        case_pattern = r'(?:v\.|vs\.)\s+[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*'
+        case_matches = re.findall(case_pattern, text)
+        for match in case_matches:
+            citations.append(f"Case: {match}")
+        
+        return citations[:5]  # Limit to 5 citations
+    
     def _create_bundle_from_text(
         self, 
         text: str, 
@@ -249,32 +319,41 @@ class MicrosoftGraphRAGService:
         Returns:
             ArgumentBundle object
         """
-        import hashlib
-        import random
-        from datetime import datetime, timedelta
-        
         # Generate consistent ID based on content
         content_hash = hashlib.md5(text.encode()).hexdigest()[:8]
         bundle_id = f"graphrag_{source_type}_{content_hash}"
         
-        # Extract key information from the text (simplified)
-        # In production, you'd use more sophisticated parsing
+        # Parse the GraphRAG markdown response
         lines = text.split('\n')
-        key_points = [line.strip() for line in lines if line.strip() and not line.startswith('#')]
-        
-        # Create segments from the key points
         segments = []
-        for i, point in enumerate(key_points[:5]):  # Limit to 5 segments
-            if len(point) > 20:  # Only include substantial points
-                segment = ArgumentSegment(
-                    segment_id=f"{bundle_id}_seg_{i:02d}",
-                    argument_id=bundle_id,
-                    text=point,
-                    role="analysis",
-                    seq=i,
-                    citations=[]
-                )
-                segments.append(segment)
+        current_section = []
+        section_count = 0
+        
+        for line in lines:
+            # Skip empty lines and markdown headers
+            if not line.strip() or line.startswith('#'):
+                # Save current section if it has content
+                if current_section and len(' '.join(current_section)) > 50:
+                    segment_text = ' '.join(current_section)
+                    # Remove markdown formatting and data references
+                    segment_text = segment_text.replace('[Data:', '[Source:')
+                    
+                    segment = ArgumentSegment(
+                        segment_id=f"{bundle_id}_seg_{section_count:02d}",
+                        argument_id=bundle_id,
+                        text=segment_text,
+                        role="opening" if section_count == 0 else "rebuttal",  # Use valid role values
+                        seq=section_count,
+                        citations=self._extract_citations(segment_text)
+                    )
+                    segments.append(segment)
+                    section_count += 1
+                    current_section = []
+                    
+                    if section_count >= 5:  # Limit to 5 segments
+                        break
+            else:
+                current_section.append(line.strip())
         
         # Create mock case info (in production, extract from graph data)
         case = Case(
@@ -306,13 +385,7 @@ class MicrosoftGraphRAGService:
             confidence=confidence_score,
             case=case,
             issue=issue,
-            segments=segments,
-            metadata={
-                "source": "microsoft_graphrag",
-                "search_type": source_type,
-                "query": request.issue_text,
-                "response_length": len(text)
-            }
+            segments=segments
         )
     
     def _generate_explanations(
@@ -330,7 +403,7 @@ class MicrosoftGraphRAGService:
         explanations = []
         
         for bundle in bundles:
-            source_type = bundle.metadata.get("search_type", "unknown")
+            source_type = "graphrag"
             
             explanation = GraphExplanation(
                 argument_id=bundle.argument_id,
@@ -390,7 +463,7 @@ class MicrosoftGraphRAGService:
                     segment_id=f"{bundle_id}_seg_{j:02d}",
                     argument_id=bundle_id,
                     text=text,
-                    role="analysis",
+                    role="opening",
                     seq=j,
                     citations=[]
                 )
@@ -424,11 +497,7 @@ class MicrosoftGraphRAGService:
                 confidence=confidence,
                 case=case,
                 issue=issue,
-                segments=segments,
-                metadata={
-                    "source": "microsoft_graphrag_mock",
-                    "is_demo": True
-                }
+                segments=segments
             )
             
             bundles.append(bundle)
