@@ -21,7 +21,11 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 # Copy the MCP server code
 COPY mcp_lawyer_server/ /app/mcp_lawyer_server/
-COPY .env /app/.env
+# Copy database and security modules
+COPY database/ /app/database/
+COPY security/ /app/security/
+COPY integrations/ /app/integrations/
+# Note: .env should be provided via volume mount or environment variables, not copied
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1

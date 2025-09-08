@@ -26,6 +26,16 @@ from .conversation_manager import ConversationManager
 from .legal_context import CaseInfo, LawyerInfo, PartyRole
 from .lawyer_agent import LawyerAgent
 
+# Security imports
+try:
+    from security.authentication import APIKeyAuth, authenticate_request
+    from security.rate_limiter import RateLimiter, RateLimitExceeded
+    from security.validators import sanitize_input, ValidationError
+    SECURITY_AVAILABLE = True
+except ImportError:
+    SECURITY_AVAILABLE = False
+    logger.warning("Security module not available - running without authentication")
+
 # Load environment variables
 load_dotenv()
 
@@ -65,12 +75,44 @@ class MCPLawyerServer:
         # Initialize MCP server
         self.server = Server("lawyer-agent")
         
-        # Initialize components
+        # Initialize security components if available
+        self.auth = None
+        self.rate_limiter = None
+        if SECURITY_AVAILABLE:
+            # Initialize authentication
+            api_key = os.getenv("API_KEY")
+            if api_key:
+                self.auth = APIKeyAuth(api_key)
+                logger.info("API key authentication enabled")
+            
+            # Initialize rate limiter
+            self.rate_limiter = RateLimiter(
+                requests_per_minute=int(os.getenv("RATE_LIMIT_REQUESTS_PER_MINUTE", "60")),
+                burst_size=int(os.getenv("RATE_LIMIT_BURST_SIZE", "10")),
+                by_ip=True,
+                by_api_key=True
+            )
+            asyncio.create_task(self.rate_limiter.start())
+            logger.info("Rate limiting enabled")
+        
+        # Initialize components with database support
+        supabase_client = None
+        if os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_KEY"):
+            try:
+                from database.supabase_client import SupabaseClient
+                supabase_client = SupabaseClient()
+                asyncio.create_task(supabase_client.connect())
+                logger.info("Supabase client initialized")
+            except Exception as e:
+                logger.error(f"Failed to initialize Supabase: {e}")
+        
         self.conversation_manager = ConversationManager(
             max_sessions=self.config["session"]["max_sessions"],
             session_ttl=self.config["session"]["session_ttl"],
             max_history_per_session=self.config["session"]["max_history_per_session"],
-            cleanup_interval=self.config["session"]["cleanup_interval"]
+            cleanup_interval=self.config["session"]["cleanup_interval"],
+            supabase_client=supabase_client,
+            use_database=True
         )
         
         # Initialize lawyer agent
@@ -358,8 +400,66 @@ class MCPLawyerServer:
             
         @self.server.call_tool()
         async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
-            """Handle tool calls."""
+            """Handle tool calls with authentication and rate limiting."""
             try:
+                # Extract request metadata if available
+                headers = arguments.pop("_headers", {})
+                ip_address = arguments.pop("_ip_address", None)
+                api_key = headers.get("X-API-Key") if headers else None
+                
+                # Apply authentication if configured
+                if self.auth and SECURITY_AVAILABLE:
+                    try:
+                        await self.auth.authenticate(headers, is_secure=False)
+                    except Exception as e:
+                        logger.warning(f"Authentication failed: {e}")
+                        return [TextContent(
+                            type="text",
+                            text=json.dumps({
+                                "error": "Authentication required",
+                                "message": str(e)
+                            }, indent=2)
+                        )]
+                
+                # Apply rate limiting if configured
+                if self.rate_limiter and SECURITY_AVAILABLE:
+                    try:
+                        await self.rate_limiter.require_rate_limit(
+                            ip=ip_address,
+                            api_key=api_key
+                        )
+                    except RateLimitExceeded as e:
+                        logger.warning(f"Rate limit exceeded: {e}")
+                        return [TextContent(
+                            type="text",
+                            text=json.dumps({
+                                "error": "Rate limit exceeded",
+                                "retry_after": e.retry_after
+                            }, indent=2)
+                        )]
+                
+                # Sanitize input if security available
+                if SECURITY_AVAILABLE and isinstance(arguments.get("query"), str):
+                    try:
+                        arguments["query"] = sanitize_input(
+                            arguments["query"],
+                            allow_html=False,
+                            max_length=10000
+                        )
+                    except ValidationError as e:
+                        return [TextContent(
+                            type="text",
+                            text=json.dumps({
+                                "error": "Invalid input",
+                                "message": str(e)
+                            }, indent=2)
+                        )]
+                
+                # Add IP address for session tracking
+                if ip_address and name == "initialize_session":
+                    arguments["_ip_address"] = ip_address
+                
+                # Route to appropriate handler
                 if name == "initialize_session":
                     result = await self._initialize_session(arguments)
                 elif name == "consult_lawyer":
@@ -446,12 +546,13 @@ class MCPLawyerServer:
                     years_experience=counsel_data.get("years_experience")
                 )
                 
-            # Create session
+            # Create session with IP address if available
             session = await self.conversation_manager.create_session(
                 case_info=case_info,
                 our_lawyer=lawyer_info,
                 opposing_counsel=opposing_counsel,
-                session_id=arguments.get("session_id")
+                session_id=arguments.get("session_id"),
+                ip_address=arguments.get("_ip_address")
             )
             
             return {

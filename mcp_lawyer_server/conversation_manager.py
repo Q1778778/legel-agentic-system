@@ -1,26 +1,38 @@
-"""Conversation session management for the MCP lawyer server."""
+"""Conversation session management for the MCP lawyer server with Supabase backend."""
 
+import os
 import asyncio
 from typing import Dict, Optional, List, Any
-from datetime import datetime, timedelta
-import hashlib
+from datetime import datetime, timedelta, timezone
+import secrets
 import json
 from collections import OrderedDict
 import structlog
 
 from .legal_context import LegalContext, CaseInfo, LawyerInfo, ArgumentContext
 
+# Import Supabase client if available
+try:
+    from database.supabase_client import SupabaseClient
+    SUPABASE_AVAILABLE = True
+except ImportError:
+    SUPABASE_AVAILABLE = False
+    logger = structlog.get_logger()
+    logger.warning("Supabase not available - using in-memory session storage")
+
 logger = structlog.get_logger()
 
 
 class ConversationSession:
-    """Individual conversation session."""
+    """Individual conversation session with Supabase persistence."""
     
     def __init__(
         self,
         session_id: str,
         context: LegalContext,
-        ttl: int = 3600
+        ttl: int = 3600,
+        user_id: Optional[str] = None,
+        ip_address: Optional[str] = None
     ):
         """Initialize conversation session.
         
@@ -28,18 +40,23 @@ class ConversationSession:
             session_id: Unique session identifier
             context: Legal context for the session
             ttl: Time to live in seconds
+            user_id: Optional user identifier
+            ip_address: Client IP address
         """
         self.session_id = session_id
         self.context = context
-        self.created_at = datetime.now()
-        self.last_accessed = datetime.now()
+        self.created_at = datetime.now(timezone.utc)
+        self.last_accessed = datetime.now(timezone.utc)
         self.ttl = ttl
         self.is_active = True
+        self.user_id = user_id
+        self.ip_address = ip_address
         self.metadata: Dict[str, Any] = {}
+        self.persisted = False  # Track if saved to database
         
     def touch(self) -> None:
         """Update last accessed time."""
-        self.last_accessed = datetime.now()
+        self.last_accessed = datetime.now(timezone.utc)
         
     def is_expired(self) -> bool:
         """Check if session has expired.
@@ -49,7 +66,7 @@ class ConversationSession:
         """
         if not self.is_active:
             return True
-        elapsed = (datetime.now() - self.last_accessed).total_seconds()
+        elapsed = (datetime.now(timezone.utc) - self.last_accessed).total_seconds()
         return elapsed > self.ttl
         
     def deactivate(self) -> None:
@@ -74,14 +91,16 @@ class ConversationSession:
 
 
 class ConversationManager:
-    """Manages multiple conversation sessions."""
+    """Manages multiple conversation sessions with Supabase backend."""
     
     def __init__(
         self,
         max_sessions: int = 1000,
         session_ttl: int = 3600,
         max_history_per_session: int = 100,
-        cleanup_interval: int = 300
+        cleanup_interval: int = 300,
+        supabase_client: Optional[Any] = None,
+        use_database: bool = True
     ):
         """Initialize conversation manager.
         
@@ -90,6 +109,8 @@ class ConversationManager:
             session_ttl: Session time to live in seconds
             max_history_per_session: Maximum conversation turns per session
             cleanup_interval: Interval for cleanup task in seconds
+            supabase_client: Optional Supabase client instance
+            use_database: Whether to use database for persistence
         """
         self.sessions: OrderedDict[str, ConversationSession] = OrderedDict()
         self.max_sessions = max_sessions
@@ -98,6 +119,19 @@ class ConversationManager:
         self.cleanup_interval = cleanup_interval
         self._cleanup_task: Optional[asyncio.Task] = None
         self._lock = asyncio.Lock()
+        
+        # Database configuration
+        self.use_database = use_database and SUPABASE_AVAILABLE
+        self.supabase_client = supabase_client
+        
+        # Initialize Supabase client if needed
+        if self.use_database and not self.supabase_client:
+            try:
+                self.supabase_client = SupabaseClient()
+                asyncio.create_task(self.supabase_client.connect())
+            except Exception as e:
+                logger.error(f"Failed to initialize Supabase client: {e}")
+                self.use_database = False
         
     async def start(self) -> None:
         """Start the conversation manager."""
@@ -121,7 +155,9 @@ class ConversationManager:
         case_info: Optional[CaseInfo] = None,
         our_lawyer: Optional[LawyerInfo] = None,
         opposing_counsel: Optional[LawyerInfo] = None,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        ip_address: Optional[str] = None
     ) -> ConversationSession:
         """Create a new conversation session.
         
@@ -164,13 +200,19 @@ class ConversationManager:
             session = ConversationSession(
                 session_id=session_id,
                 context=context,
-                ttl=self.session_ttl
+                ttl=self.session_ttl,
+                user_id=user_id,
+                ip_address=ip_address
             )
             
-            # Store session
+            # Store session in memory
             self.sessions[session_id] = session
             # Move to end to maintain LRU order
             self.sessions.move_to_end(session_id)
+            
+            # Persist to database if configured
+            if self.use_database:
+                await self._persist_session(session)
             
             logger.info(f"Created session {session_id}")
             return session
@@ -185,15 +227,28 @@ class ConversationManager:
             Session if found and active, None otherwise
         """
         async with self._lock:
+            # Check memory first
             session = self.sessions.get(session_id)
+            
+            # Try to load from database if not in memory
+            if not session and self.use_database:
+                session = await self._load_session_from_db(session_id)
+                if session:
+                    self.sessions[session_id] = session
+                    
             if session:
                 if session.is_expired():
                     del self.sessions[session_id]
+                    if self.use_database:
+                        await self._delete_session_from_db(session_id)
                     logger.info(f"Session {session_id} expired and removed")
                     return None
                 session.touch()
                 # Move to end for LRU
                 self.sessions.move_to_end(session_id)
+                # Update in database
+                if self.use_database and session.persisted:
+                    await self._update_session_in_db(session)
                 return session
             return None
             
@@ -440,13 +495,15 @@ class ConversationManager:
                 logger.error(f"Error in cleanup loop: {e}")
                 
     def _generate_session_id(self) -> str:
-        """Generate unique session ID.
+        """Generate cryptographically secure session ID.
         
         Returns:
-            Unique session identifier
+            Unique session identifier using secure random tokens
         """
-        content = f"{datetime.now().isoformat()}_{len(self.sessions)}"
-        return f"session_{hashlib.md5(content.encode()).hexdigest()[:16]}"
+        # Generate a cryptographically secure random token
+        # Using 24 bytes gives us 192 bits of entropy (very secure)
+        secure_token = secrets.token_urlsafe(24)
+        return f"session_{secure_token}"
         
     def get_stats(self) -> Dict[str, Any]:
         """Get manager statistics.
@@ -467,5 +524,168 @@ class ConversationManager:
             "total_conversation_turns": total_turns,
             "max_sessions": self.max_sessions,
             "session_ttl": self.session_ttl,
-            "cleanup_interval": self.cleanup_interval
+            "cleanup_interval": self.cleanup_interval,
+            "database_enabled": self.use_database
         }
+        
+    # Database persistence methods
+    async def _persist_session(self, session: ConversationSession) -> None:
+        """Persist session to Supabase database.
+        
+        Args:
+            session: Session to persist
+        """
+        if not self.supabase_client:
+            return
+            
+        try:
+            session_data = {
+                "session_id": session.session_id,
+                "user_id": session.user_id,
+                "ip_address": session.ip_address,
+                "session_data": json.dumps({
+                    "context": session.context.to_dict(),
+                    "metadata": session.metadata
+                }),
+                "is_active": session.is_active,
+                "created_at": session.created_at.isoformat(),
+                "last_accessed": session.last_accessed.isoformat(),
+                "expires_at": (session.created_at + timedelta(seconds=session.ttl)).isoformat()
+            }
+            
+            await self.supabase_client.table("sessions").insert(session_data).execute()
+            session.persisted = True
+            logger.debug(f"Persisted session {session.session_id} to database")
+            
+        except Exception as e:
+            logger.error(f"Failed to persist session {session.session_id}: {e}")
+            
+    async def _update_session_in_db(self, session: ConversationSession) -> None:
+        """Update session in database.
+        
+        Args:
+            session: Session to update
+        """
+        if not self.supabase_client:
+            return
+            
+        try:
+            update_data = {
+                "session_data": json.dumps({
+                    "context": session.context.to_dict(),
+                    "metadata": session.metadata
+                }),
+                "last_accessed": session.last_accessed.isoformat(),
+                "is_active": session.is_active
+            }
+            
+            await self.supabase_client.table("sessions")\
+                .update(update_data)\
+                .eq("session_id", session.session_id)\
+                .execute()
+                
+            logger.debug(f"Updated session {session.session_id} in database")
+            
+        except Exception as e:
+            logger.error(f"Failed to update session {session.session_id}: {e}")
+            
+    async def _load_session_from_db(self, session_id: str) -> Optional[ConversationSession]:
+        """Load session from database.
+        
+        Args:
+            session_id: Session ID to load
+            
+        Returns:
+            Session if found, None otherwise
+        """
+        if not self.supabase_client:
+            return None
+            
+        try:
+            result = await self.supabase_client.table("sessions")\
+                .select("*")\
+                .eq("session_id", session_id)\
+                .single()\
+                .execute()
+                
+            if result.data:
+                data = result.data
+                session_data = json.loads(data["session_data"])
+                
+                # Recreate context from stored data
+                context = LegalContext.from_dict(session_data["context"])
+                
+                # Create session
+                session = ConversationSession(
+                    session_id=data["session_id"],
+                    context=context,
+                    ttl=self.session_ttl,
+                    user_id=data.get("user_id"),
+                    ip_address=data.get("ip_address")
+                )
+                
+                # Restore metadata
+                session.metadata = session_data.get("metadata", {})
+                session.persisted = True
+                
+                # Restore timestamps
+                if data.get("created_at"):
+                    session.created_at = datetime.fromisoformat(data["created_at"].replace("Z", "+00:00"))
+                if data.get("last_accessed"):
+                    session.last_accessed = datetime.fromisoformat(data["last_accessed"].replace("Z", "+00:00"))
+                    
+                logger.debug(f"Loaded session {session_id} from database")
+                return session
+                
+        except Exception as e:
+            logger.error(f"Failed to load session {session_id}: {e}")
+            
+        return None
+        
+    async def _delete_session_from_db(self, session_id: str) -> None:
+        """Delete session from database.
+        
+        Args:
+            session_id: Session ID to delete
+        """
+        if not self.supabase_client:
+            return
+            
+        try:
+            await self.supabase_client.table("sessions")\
+                .delete()\
+                .eq("session_id", session_id)\
+                .execute()
+                
+            logger.debug(f"Deleted session {session_id} from database")
+            
+        except Exception as e:
+            logger.error(f"Failed to delete session {session_id}: {e}")
+            
+    async def _cleanup_database_sessions(self) -> int:
+        """Clean up expired sessions in database.
+        
+        Returns:
+            Number of sessions cleaned up
+        """
+        if not self.supabase_client:
+            return 0
+            
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            
+            result = await self.supabase_client.table("sessions")\
+                .delete()\
+                .lt("expires_at", now)\
+                .execute()
+                
+            count = len(result.data) if result.data else 0
+            
+            if count > 0:
+                logger.info(f"Cleaned up {count} expired sessions from database")
+                
+            return count
+            
+        except Exception as e:
+            logger.error(f"Failed to cleanup database sessions: {e}")
+            return 0

@@ -7,8 +7,10 @@ import httpx
 import structlog
 from tenacity import retry, stop_after_attempt, wait_exponential
 import json
+from openai_agents import Agent, client
 
 from .legal_context import ArgumentContext, LawyerInfo
+from .graphrag_retrieval import GraphRAGRetrieval
 
 logger = structlog.get_logger()
 
@@ -35,6 +37,17 @@ class OpponentSimulator:
         self.search_strategy = config.get("search_strategy", {})
         self.max_precedents = config.get("max_precedents", 5)
         self.confidence_threshold = config.get("confidence_threshold", 0.65)
+        
+        # Initialize GraphRAGRetrieval
+        self.graphrag_retrieval = GraphRAGRetrieval()
+        
+        # Initialize OpenAI Agent for legal reasoning
+        self.legal_agent = Agent(
+            model="gpt-4-turbo-preview",
+            instructions="You are an expert legal analyst and opposing counsel simulator. Your task is to identify weaknesses in legal arguments and generate strong counter-arguments based on precedents.",
+            functions=[],
+            tool_choice=None
+        )
         
     @retry(
         stop=stop_after_attempt(3),
@@ -120,7 +133,7 @@ class OpponentSimulator:
         case_context: Dict[str, Any],
         opposing_counsel: Optional[LawyerInfo] = None
     ) -> List[Dict[str, Any]]:
-        """Search for precedents that support the opposing position.
+        """Search for precedents that support the opposing position using GraphRAGRetrieval.
         
         Args:
             our_argument: Our legal argument
@@ -137,37 +150,26 @@ class OpponentSimulator:
                 case_context
             )
             
-            # Make request to GraphRAG API
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"{self.graphrag_base_url}/api/v1/retrieval/past-defenses",
-                    json={
-                        "issue_text": search_query,
-                        "lawyer_id": opposing_counsel.id if opposing_counsel else None,
-                        "limit": self.max_precedents * 2,  # Over-fetch for filtering
-                        "filters": {
-                            "outcome_opposite": True,  # Custom filter for opposite outcomes
-                            "winning_side": "opposition"
-                        }
-                    },
-                    timeout=10.0
+            # Use GraphRAGRetrieval directly
+            precedents = await self.graphrag_retrieval.retrieve_past_defenses(
+                issue_text=search_query,
+                lawyer_id=opposing_counsel.id if opposing_counsel else None,
+                jurisdiction=case_context.get("jurisdiction"),
+                limit=self.max_precedents * 2  # Over-fetch for filtering
+            )
+            
+            if precedents:
+                # Filter and rank by relevance to opposition
+                filtered = self._filter_opposing_precedents(
+                    precedents,
+                    our_argument,
+                    case_context
                 )
                 
-                if response.status_code == 200:
-                    data = response.json()
-                    precedents = data.get("bundles", [])
-                    
-                    # Filter and rank by relevance to opposition
-                    filtered = self._filter_opposing_precedents(
-                        precedents,
-                        our_argument,
-                        case_context
-                    )
-                    
-                    return filtered[:self.max_precedents]
-                else:
-                    logger.warning(f"GraphRAG API returned {response.status_code}")
-                    return self._generate_mock_opposing_precedents(our_argument)
+                return filtered[:self.max_precedents]
+            else:
+                logger.warning("No precedents found from GraphRAGRetrieval")
+                return self._generate_mock_opposing_precedents(our_argument)
                     
         except Exception as e:
             logger.error(f"Error searching opposing precedents: {e}")
@@ -311,23 +313,29 @@ Based on these opposing precedents:
 
 List 2-3 specific weaknesses:"""
 
-                response = await self.openai_client.chat.completions.create(
-                    model="gpt-4-turbo-preview",
-                    messages=[
-                        {"role": "system", "content": "You are an expert legal analyst identifying argument weaknesses."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.7,
-                    max_tokens=500
+                # Use OpenAI Agent to identify logical weaknesses
+                messages = [
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ]
+                
+                # Run the agent
+                response = client.run(
+                    agent=self.legal_agent,
+                    messages=messages
                 )
                 
-                ai_weaknesses = response.choices[0].message.content.split("\n")
-                for weakness_text in ai_weaknesses:
-                    if weakness_text.strip():
-                        weaknesses.append({
-                            "type": "logical_weakness",
-                            "description": weakness_text.strip()
-                        })
+                # Extract weaknesses from the response
+                if response.messages:
+                    ai_weaknesses = response.messages[-1].content.split("\n")
+                    for weakness_text in ai_weaknesses:
+                        if weakness_text.strip():
+                            weaknesses.append({
+                                "type": "logical_weakness",
+                                "description": weakness_text.strip()
+                            })
                         
             except Exception as e:
                 logger.error(f"Error identifying weaknesses with AI: {e}")
@@ -392,17 +400,28 @@ Provide a compelling counter-argument that:
 
 Response (2-3 paragraphs):"""
 
-            response = await self.openai_client.chat.completions.create(
+            # Create a specialized opposing counsel agent
+            opposing_agent = Agent(
                 model="gpt-4-turbo-preview",
-                messages=[
-                    {"role": "system", "content": f"You are {counsel_name}, responding as opposing counsel in a legal proceeding."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.7,
-                max_tokens=800
+                instructions=f"You are {counsel_name}, an experienced {counsel_style} lawyer. You respond as opposing counsel with strong legal arguments based on precedents and exploit weaknesses in the opposing position.",
+                functions=[],
+                tool_choice=None
             )
             
-            generated_argument = response.choices[0].message.content
+            messages = [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+            
+            # Run the opposing counsel agent
+            response = client.run(
+                agent=opposing_agent,
+                messages=messages
+            )
+            
+            generated_argument = response.messages[-1].content if response.messages else "The opposing party's argument lacks merit."
             
             # Calculate confidence based on precedents and weaknesses
             confidence = self._calculate_response_confidence(
@@ -601,17 +620,28 @@ Provide 3 concise counter-arguments that:
 
 Format each as a brief 2-3 sentence counter-argument."""
 
-            response = await self.openai_client.chat.completions.create(
+            # Create counter-argument agent
+            counter_agent = Agent(
                 model="gpt-4-turbo-preview",
-                messages=[
-                    {"role": "system", "content": "You are an expert legal strategist providing counter-arguments."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.7,
-                max_tokens=600
+                instructions="You are an expert legal strategist providing strong counter-arguments to opposing counsel's positions.",
+                functions=[],
+                tool_choice=None
             )
             
-            counter_text = response.choices[0].message.content
+            messages = [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+            
+            # Run the counter-argument agent
+            response = client.run(
+                agent=counter_agent,
+                messages=messages
+            )
+            
+            counter_text = response.messages[-1].content if response.messages else ""
             counters = []
             
             # Parse the response into individual counter-arguments
