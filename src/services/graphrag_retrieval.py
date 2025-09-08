@@ -1,4 +1,4 @@
-"""GraphRAG hybrid retrieval system combining vector and graph search."""
+"""GraphRAG hybrid retrieval system using Microsoft's official GraphRAG."""
 
 from typing import List, Dict, Any, Optional, Tuple
 import numpy as np
@@ -24,21 +24,33 @@ from ..models.schemas import (
 )
 from .embeddings import EmbeddingService
 from .enhanced_mock_data import get_generator
+from .microsoft_graphrag_service import MicrosoftGraphRAGService
 
 logger = structlog.get_logger()
 
 
 class GraphRAGRetrieval:
-    """Hybrid retrieval system using GraphRAG."""
+    """Hybrid retrieval system using Microsoft's official GraphRAG."""
     
     def __init__(self):
         """Initialize GraphRAG retrieval system."""
+        # Keep existing services for fallback and metrics
         self.vector_db = VectorDB()
         self.graph_db = GraphDB()
         self.embedding_service = EmbeddingService()
         self.metrics_service = MetricsService()
         
-        # Scoring weights
+        # Add Microsoft GraphRAG service
+        try:
+            self.microsoft_graphrag = MicrosoftGraphRAGService()
+            self.use_microsoft_graphrag = True
+            logger.info("Microsoft GraphRAG service initialized successfully")
+        except Exception as e:
+            logger.warning(f"Failed to initialize Microsoft GraphRAG: {e}")
+            self.microsoft_graphrag = None
+            self.use_microsoft_graphrag = False
+        
+        # Scoring weights (kept for fallback systems)
         self.alpha = settings.graphrag_alpha  # Vector similarity weight
         self.beta = settings.graphrag_beta    # Judge alignment weight
         self.gamma = settings.graphrag_gamma  # Citation overlap weight
@@ -59,7 +71,26 @@ class GraphRAGRetrieval:
         """
         start_time = time.time()
         
+        # Try Microsoft GraphRAG first if available
+        if self.use_microsoft_graphrag and self.microsoft_graphrag:
+            try:
+                logger.info("Using Microsoft GraphRAG for retrieval")
+                response = await self.microsoft_graphrag.retrieve_past_defenses(request)
+                
+                # Add metrics if lawyer_id provided
+                if request.lawyer_id:
+                    response.metrics = await self._calculate_metrics(request.lawyer_id)
+                
+                return response
+                
+            except Exception as e:
+                logger.warning(f"Microsoft GraphRAG failed, falling back: {e}")
+                # Continue to fallback system below
+        
+        # Fallback to original hybrid system
         try:
+            logger.info("Using fallback hybrid retrieval system")
+            
             # 1. Vector search for semantically similar arguments
             vector_results = await self._vector_search(
                 request.issue_text,
@@ -130,7 +161,7 @@ class GraphRAGRetrieval:
             )
             
         except Exception as e:
-            logger.error(f"Error in GraphRAG retrieval: {e}")
+            logger.error(f"Error in fallback GraphRAG retrieval: {e}")
             
             # Return mock data for demo if database is empty
             if "collection" in str(e).lower() or "not found" in str(e).lower():
