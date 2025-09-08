@@ -1,0 +1,81 @@
+# MCP Lawyer Server Configuration
+
+# Server Configuration
+server:
+  host: "0.0.0.0"
+  port: 3000
+  transport: "stdio"  # Can be "stdio" or "websocket"
+  max_connections: 100
+  request_timeout: 30  # seconds
+  
+# GraphRAG Backend Configuration  
+graphrag:
+  base_url: "http://localhost:8000"
+  api_version: "v1"
+  endpoints:
+    retrieval: "/api/v1/retrieval/past-defenses"
+    metrics: "/api/v1/metrics"
+  timeout: 10  # seconds
+  retry_attempts: 3
+  retry_delay: 1  # seconds
+  
+# OpenAI Configuration
+openai:
+  api_key: "${OPENAI_API_KEY}"  # Will be loaded from environment
+  model: "gpt-4-turbo-preview"
+  temperature: 0.7
+  max_tokens: 2000
+  timeout: 30  # seconds
+  
+# Opponent Simulation Configuration  
+opponent_simulation:
+  search_strategy:
+    opposite_outcome_weight: 0.8
+    counter_argument_weight: 0.7
+    weakness_identification_weight: 0.6
+  max_precedents: 5
+  confidence_threshold: 0.65
+  
+# Session Management
+session:
+  max_sessions: 1000
+  session_ttl: 3600  # seconds (1 hour)
+  max_history_per_session: 100
+  cleanup_interval: 300  # seconds
+  
+# Caching Configuration
+cache:
+  enabled: true
+  ttl: 600  # seconds (10 minutes)
+  max_size: 1000
+  
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "json"
+  file: "mcp_lawyer_server.log"
+  max_size: "100MB"
+  max_files: 5
+  
+# Rate Limiting
+rate_limiting:
+  enabled: true
+  requests_per_minute: 60
+  burst_size: 10
+  
+# Security
+security:
+  enable_cors: true
+  allowed_origins:
+    - "http://localhost:*"
+    - "https://localhost:*"
+  api_key_header: "X-API-Key"
+  require_api_key: false  # Set to true in production
+  
+# Feature Flags
+features:
+  opponent_simulation: true
+  case_analysis: true
+  precedent_search: true
+  metrics_tracking: true
+  mock_data_fallback: true
