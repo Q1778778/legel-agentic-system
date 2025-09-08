@@ -24,6 +24,7 @@ from ..models.schemas import (
     Case,
     Issue,
 )
+from .enhanced_mock_data import get_generator
 
 logger = structlog.get_logger()
 
@@ -122,7 +123,7 @@ class MicrosoftGraphRAGService:
                 cwd=self.graphrag_data_dir,
                 capture_output=True,
                 text=True,
-                timeout=60,
+                timeout=7,  # Quick timeout for fast fallback
                 env={**os.environ, "PYTHONWARNINGS": "ignore"}  # Suppress warnings
             )
             
@@ -157,7 +158,7 @@ class MicrosoftGraphRAGService:
                 return ""
                 
         except subprocess.TimeoutExpired:
-            logger.error("GraphRAG local search timed out after 60 seconds")
+            logger.warning("GraphRAG local search timed out after 7 seconds, will fallback to Neo4j/Mock")
             return ""
         except FileNotFoundError:
             logger.error("GraphRAG command not found. Please ensure graphrag is installed: pip install graphrag")
@@ -187,7 +188,7 @@ class MicrosoftGraphRAGService:
                 cwd=self.graphrag_data_dir,
                 capture_output=True,
                 text=True,
-                timeout=90,  # Global search takes longer
+                timeout=7,  # Quick timeout for fast fallback
                 env={**os.environ, "PYTHONWARNINGS": "ignore"}  # Suppress warnings
             )
             
@@ -222,7 +223,7 @@ class MicrosoftGraphRAGService:
                 return ""
                 
         except subprocess.TimeoutExpired:
-            logger.error("GraphRAG global search timed out after 90 seconds")
+            logger.warning("GraphRAG global search timed out after 7 seconds, will fallback to Neo4j/Mock")
             return ""
         except FileNotFoundError:
             logger.error("GraphRAG command not found. Please ensure graphrag is installed: pip install graphrag")
@@ -413,7 +414,8 @@ class MicrosoftGraphRAGService:
                     "confidence": bundle.confidence.value
                 }],
                 key_nodes=["Legal_Cases", "Entities", "Relationships", "Communities"],
-                explanation_text=f"Found via Microsoft GraphRAG {source_type} search using knowledge graph analysis of legal documents"
+                explanation_text=f"Found via Microsoft GraphRAG {source_type} search using knowledge graph analysis of legal documents",
+                final_score=bundle.confidence.value
             )
             explanations.append(explanation)
         
@@ -421,6 +423,7 @@ class MicrosoftGraphRAGService:
     
     def _generate_mock_bundles(self, issue_text: str, limit: int) -> List[ArgumentBundle]:
         """Generate mock argument bundles when no results are found.
+        Uses real legal cases from enhanced_mock_data module.
         
         Args:
             issue_text: Query text
@@ -429,80 +432,28 @@ class MicrosoftGraphRAGService:
         Returns:
             List of mock ArgumentBundles
         """
+        # Use the enhanced mock data generator with real legal cases
+        generator = get_generator()
+        
+        # Generate argument bundles based on the query using real legal cases
+        bundles_data = generator.generate_argument_bundles(issue_text, limit)
+        
+        # Convert to ArgumentBundle objects
         bundles = []
-        
-        # Enhanced mock data based on common legal issues
-        mock_cases = [
-            {
-                "caption": "GraphRAG Legal Analysis - Patent Dispute",
-                "court": "U.S. District Court, Technology Division",
-                "issue_title": "Patent Infringement Analysis",
-                "segments": [
-                    "The defendant's product implements similar technical features to the patented invention, requiring detailed claim-by-claim analysis.",
-                    "Prior art search reveals potential invalidity defenses that could limit patent scope and enforceability.",
-                    "Damages calculation must consider reasonable royalty rates and defendant's actual profits from infringing sales."
-                ]
-            },
-            {
-                "caption": "GraphRAG Legal Analysis - Contract Breach",
-                "court": "State Superior Court, Commercial Division", 
-                "issue_title": "Contract Performance and Breach",
-                "segments": [
-                    "Material breach analysis requires examining whether party's non-performance substantially frustrated the contract's purpose.",
-                    "Force majeure clauses may excuse performance if unforeseeable circumstances prevented contract fulfillment.",
-                    "Mitigation of damages doctrine requires injured party to take reasonable steps to minimize losses."
-                ]
-            }
-        ]
-        
-        for i, template in enumerate(mock_cases[:limit]):
-            bundle_id = f"mock_graphrag_{i:03d}"
-            
-            segments = [
-                ArgumentSegment(
-                    segment_id=f"{bundle_id}_seg_{j:02d}",
-                    argument_id=bundle_id,
-                    text=text,
-                    role="opening",
-                    seq=j,
-                    citations=[]
-                )
-                for j, text in enumerate(template["segments"])
-            ]
-            
-            case = Case(
-                id=f"mock_case_{i:03d}",
-                caption=template["caption"],
-                court=template["court"], 
-                jurisdiction="US",
-                filed_date=datetime.now() - timedelta(days=30)
-            )
-            
-            issue = Issue(
-                id=f"mock_issue_{i:03d}",
-                title=template["issue_title"],
-                taxonomy_path=["Law", "GraphRAG", template["issue_title"]]
-            )
-            
-            confidence = ConfidenceScore(
-                value=0.75,
-                features={
-                    "graphrag_mock": True,
-                    "relevance": 0.75
-                }
-            )
-            
+        for data in bundles_data:
+            # The data already has the correct structure from enhanced_mock_data
             bundle = ArgumentBundle(
-                argument_id=bundle_id,
-                confidence=confidence,
-                case=case,
-                issue=issue,
-                segments=segments
+                argument_id=data["argument_id"],
+                confidence=data["confidence"],
+                case=data["case"],
+                issue=data["issue"],
+                segments=data["segments"]
             )
-            
             bundles.append(bundle)
         
-        return bundles[:limit]
+        logger.info(f"Generated {len(bundles)} mock bundles using real legal cases for query: {issue_text[:50]}...")
+        
+        return bundles
     
     async def _fallback_mock_response(
         self, 

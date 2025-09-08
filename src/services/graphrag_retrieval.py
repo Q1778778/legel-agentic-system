@@ -574,8 +574,8 @@ class GraphRAGRetrieval:
                     confidence=data["confidence"],
                     case=data["case"],
                     issue=data["issue"],
-                    segments=data["segments"],
-                    metadata=data.get("metadata", {})
+                    segments=data["segments"]
+                    # Remove metadata field as ArgumentBundle doesn't have it
                 )
                 bundles.append(bundle)
             
@@ -760,13 +760,8 @@ class GraphRAGRetrieval:
                         citations=[f"Legal Code § {random.randint(1,500)}"] if j == 1 else []
                     )
                     for j, text in enumerate(template["segments"])
-                ],
-                metadata={
-                    "is_mock": True,
-                    "judge": f"Judge {random.choice(['Smith', 'Johnson', 'Williams', 'Brown', 'Davis'])}",
-                    "lawyer": f"lawyer_{random.randint(1,10):03d}",
-                    "outcome": random.choice(["won", "lost", "settled"])
-                }
+                ]
+                # Remove metadata as ArgumentBundle doesn't have this field
             )
             mock_cases.append(bundle)
         
