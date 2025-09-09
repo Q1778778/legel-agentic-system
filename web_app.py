@@ -667,86 +667,86 @@ with main_content_placeholder:
 
     # Tab 1: GraphRAG Retrieval
     with tab1:
-    st.header("GraphRAG Legal Case Retrieval")
-    st.markdown("Search for relevant legal cases using hybrid Graph + Vector retrieval")
-    
-    col1, col2 = st.columns([3, 1])
-    
-    with col1:
-        issue_text = st.text_area(
-            "Legal Issue Description",
-            placeholder="Enter the legal issue or dispute description...\nExample: Contract breach involving late delivery, intellectual property infringement, employment discrimination...",
-            height=120
-        )
-    
-    with col2:
-        st.markdown("**Optional Filters**")
-        lawyer_id = st.text_input("Lawyer ID", placeholder="e.g., lawyer_001")
-        issue_id = st.text_input("Issue ID", placeholder="e.g., issue_001")
-    
-    if st.button("🔍 Search Related Cases", type="primary", key="search"):
-        if not issue_text:
-            st.warning("Please enter a legal issue description")
-        else:
-            with st.spinner("Performing GraphRAG retrieval..."):
-                result = search_past_defenses(
-                    issue_text=issue_text,
-                    limit=retrieval_limit,
-                    lawyer_id=lawyer_id if lawyer_id else None,
-                    current_issue_id=issue_id if issue_id else None
-                )
-                
-                if "error" in result:
-                    st.error(f"Retrieval failed: {result['error']}")
-                else:
-                    bundles = result.get("bundles", [])
-                    query_time = result.get("query_time_ms", 0)
+        st.header("GraphRAG Legal Case Retrieval")
+        st.markdown("Search for relevant legal cases using hybrid Graph + Vector retrieval")
+        
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            issue_text = st.text_area(
+                "Legal Issue Description",
+                placeholder="Enter the legal issue or dispute description...\nExample: Contract breach involving late delivery, intellectual property infringement, employment discrimination...",
+                height=120
+            )
+        
+        with col2:
+            st.markdown("**Optional Filters**")
+            lawyer_id = st.text_input("Lawyer ID", placeholder="e.g., lawyer_001")
+            issue_id = st.text_input("Issue ID", placeholder="e.g., issue_001")
+        
+        if st.button("🔍 Search Related Cases", type="primary", key="search"):
+            if not issue_text:
+                st.warning("Please enter a legal issue description")
+            else:
+                with st.spinner("Performing GraphRAG retrieval..."):
+                    result = search_past_defenses(
+                        issue_text=issue_text,
+                        limit=retrieval_limit,
+                        lawyer_id=lawyer_id if lawyer_id else None,
+                        current_issue_id=issue_id if issue_id else None
+                    )
                     
-                    st.success(f"✅ Found {len(bundles)} relevant cases in {query_time}ms")
-                    
-                    # Store in session state for analysis
-                    st.session_state["retrieved_bundles"] = bundles
-                    
-                    # Display Core Metrics if available
-                    if result.get("metrics"):
-                        st.markdown("### 📊 Core Metrics")
-                        metrics = result["metrics"]
+                    if "error" in result:
+                        st.error(f"Retrieval failed: {result['error']}")
+                    else:
+                        bundles = result.get("bundles", [])
+                        query_time = result.get("query_time_ms", 0)
                         
-                        col1, col2, col3 = st.columns(3)
+                        st.success(f"✅ Found {len(bundles)} relevant cases in {query_time}ms")
                         
-                        with col1:
-                            win_rate = metrics.get("win_rate", {})
-                            st.metric(
-                                "Win Rate",
-                                f"{win_rate.get('overall_win_rate', 0):.1%}",
-                                f"{win_rate.get('total_cases', 0)} cases"
-                            )
+                        # Store in session state for analysis
+                        st.session_state["retrieved_bundles"] = bundles
                         
-                        with col2:
-                            if "judge_alignment" in metrics:
-                                alignment = metrics["judge_alignment"]
-                                st.metric(
-                                    "Judge Alignment",
-                                    f"{alignment.get('overall_alignment_rate', 0):.1%}",
-                                    f"{alignment.get('total_appearances', 0)} appearances"
-                                )
-                        
-                        with col3:
-                            diversity = metrics.get("argument_diversity", {})
-                            st.metric(
-                                "Argument Diversity",
-                                diversity.get("total_unique_arguments", 0),
-                                "unique strategies"
-                            )
-                    
-                    # Display results
-                    for i, bundle in enumerate(bundles, 1):
-                        with st.expander(f"Case {i}: {bundle.get('case', {}).get('caption', 'Unknown')}"):
+                        # Display Core Metrics if available
+                        if result.get("metrics"):
+                            st.markdown("### 📊 Core Metrics")
+                            metrics = result["metrics"]
+                            
                             col1, col2, col3 = st.columns(3)
                             
                             with col1:
-                                st.markdown("**Case Details**")
-                                case = bundle.get("case", {})
+                                win_rate = metrics.get("win_rate", {})
+                                st.metric(
+                                    "Win Rate",
+                                    f"{win_rate.get('overall_win_rate', 0):.1%}",
+                                    f"{win_rate.get('total_cases', 0)} cases"
+                                )
+                            
+                            with col2:
+                                if "judge_alignment" in metrics:
+                                    alignment = metrics["judge_alignment"]
+                                    st.metric(
+                                        "Judge Alignment",
+                                        f"{alignment.get('overall_alignment_rate', 0):.1%}",
+                                        f"{alignment.get('total_appearances', 0)} appearances"
+                                    )
+                            
+                            with col3:
+                                diversity = metrics.get("argument_diversity", {})
+                                st.metric(
+                                    "Argument Diversity",
+                                    diversity.get("total_unique_arguments", 0),
+                                    "unique strategies"
+                                )
+                        
+                        # Display results
+                        for i, bundle in enumerate(bundles, 1):
+                            with st.expander(f"Case {i}: {bundle.get('case', {}).get('caption', 'Unknown')}"):
+                                col1, col2, col3 = st.columns(3)
+                                
+                                with col1:
+                                    st.markdown("**Case Details**")
+                                    case = bundle.get("case", {})
                                 st.write(f"Court: {case.get('court', 'N/A')}")
                                 st.write(f"Jurisdiction: {case.get('jurisdiction', 'N/A')}")
                                 st.write(f"Filed: {case.get('filed_date', 'N/A')[:10] if case.get('filed_date') else 'N/A'}")

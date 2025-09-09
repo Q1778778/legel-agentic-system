@@ -11,7 +11,7 @@ import time
 import uuid
 
 from .core.config import settings
-from .api import retrieval, legal_analysis, health, metrics, smart_analysis, simple_analysis, case_management, mcp_endpoints, legal_data
+from .api import retrieval, legal_analysis, health, metrics, smart_analysis, simple_analysis, case_management, mcp_endpoints, legal_data, chat
 # Temporarily comment out to fix nltk import error
 # from .api.legal_data_websocket import websocket_endpoint
 from .db.graph_db import GraphDB
@@ -193,6 +193,12 @@ app.include_router(
 app.include_router(
     legal_data.router,
     tags=["legal-data"],
+)
+
+app.include_router(
+    chat.router,
+    prefix="/api/chat",
+    tags=["chat"],
 )
 
 
