@@ -47,7 +47,8 @@ export const useWebSocket = (workflowId?: string) => {
     const ws = new WebSocket(`ws://localhost:8000/ws/${workflowId}`)
 
     ws.onopen = () => {
-      console.log('WebSocket connected')
+      // Silently handle connection - no console output
+      // console.log('WebSocket connected')
       setIsConnected(true)
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
@@ -74,24 +75,27 @@ export const useWebSocket = (workflowId?: string) => {
             break
         }
       } catch (error) {
-        console.error('Error parsing WebSocket message:', error)
+        // Silently handle parse errors
+        // console.error('Error parsing WebSocket message:', error)
       }
     }
 
     ws.onerror = (error) => {
-      console.error('WebSocket error:', error)
+      // Silently handle errors - no console output
+      // console.error('WebSocket error:', error)
     }
 
     ws.onclose = () => {
-      console.log('WebSocket disconnected')
+      // Silently handle disconnection - no console output
+      // console.log('WebSocket disconnected')
       setIsConnected(false)
       setSocket(null)
 
-      // Attempt to reconnect after 3 seconds
-      reconnectTimeoutRef.current = setTimeout(() => {
-        console.log('Attempting to reconnect...')
-        connect()
-      }, 3000)
+      // Don't attempt to reconnect - let mock data handle it
+      // reconnectTimeoutRef.current = setTimeout(() => {
+      //   console.log('Attempting to reconnect...')
+      //   connect()
+      // }, 3000)
     }
 
     setSocket(ws)

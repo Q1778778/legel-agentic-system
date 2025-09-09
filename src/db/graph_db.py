@@ -54,7 +54,7 @@ class GraphDB:
         
         indexes = [
             "CREATE INDEX issue_title IF NOT EXISTS FOR (n:Issue) ON (n.title)",
-            "CREATE INDEX node_tenant IF NOT EXISTS FOR (n) ON (n.tenant)",
+            "CREATE INDEX node_tenant IF NOT EXISTS FOR (n:Node) ON (n.tenant)",
             "CREATE INDEX case_jurisdiction IF NOT EXISTS FOR (n:Case) ON (n.jurisdiction)",
             "CREATE INDEX case_filed_date IF NOT EXISTS FOR (n:Case) ON (n.filed_date)",
             "CREATE INDEX lawyer_name IF NOT EXISTS FOR (n:Lawyer) ON (n.name)",

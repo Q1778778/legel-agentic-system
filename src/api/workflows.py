@@ -142,7 +142,8 @@ async def execute_workflow(
     
     if request.async_execution:
         # Execute in background
-        background_tasks.add_task(workflow_engine.execute_workflow, workflow_id)
+        # Use the internal method that doesn't require context
+        background_tasks.add_task(workflow_engine._execute_workflow_internal, workflow_id)
         return {
             "message": "Workflow execution started",
             "workflow_id": workflow_id,
@@ -151,7 +152,7 @@ async def execute_workflow(
     else:
         # Execute synchronously
         try:
-            await workflow_engine.execute_workflow(workflow_id)
+            await workflow_engine._execute_workflow_internal(workflow_id)
             return {
                 "message": "Workflow execution completed",
                 "workflow_id": workflow_id,

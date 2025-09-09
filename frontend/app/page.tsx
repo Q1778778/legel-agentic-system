@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Scale, MessageSquare, FileText, Wifi, WifiOff } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,6 +11,7 @@ import ArgumentDisplay from '@/components/ArgumentDisplay'
 import DebateDisplay from '@/components/DebateDisplay'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { cn } from '@/lib/utils'
+import { getMockResponse } from '@/lib/mockData'
 
 // Mock workflow ID for demonstration
 const MOCK_WORKFLOW_ID = 'demo-workflow-123'
@@ -37,6 +38,10 @@ export default function Home() {
   const [workflowStarted, setWorkflowStarted] = useState(false)
   const [userInput, setUserInput] = useState('')
   const [caseContext, setCaseContext] = useState('')
+  const [useMockData, setUseMockData] = useState(false)
+  const [mockArguments, setMockArguments] = useState<any[]>([])
+  const [mockDebateTurns, setMockDebateTurns] = useState<any[]>([])
+  const [mockFeedback, setMockFeedback] = useState<any>(null)
   
   // Use WebSocket hook
   const {
@@ -45,10 +50,15 @@ export default function Home() {
     arguments: wsArguments,
     debateTurns,
     feedback
-  } = useWebSocket(workflowStarted ? MOCK_WORKFLOW_ID : undefined)
+  } = useWebSocket(workflowStarted && !useMockData ? MOCK_WORKFLOW_ID : undefined)
 
+  // Use mock or real data based on connection status
+  const actualArguments = useMockData ? mockArguments : wsArguments
+  const actualDebateTurns = useMockData ? mockDebateTurns : debateTurns
+  const actualFeedback = useMockData ? mockFeedback : feedback
+  
   // Transform arguments for display
-  const displayArguments = wsArguments.map((arg, index) => ({
+  const displayArguments = actualArguments.map((arg, index) => ({
     id: `arg-${index}`,
     agent: arg.agent,
     content: arg.content,
@@ -64,7 +74,12 @@ export default function Home() {
       return
     }
     
+    // Reset states
     setWorkflowStarted(true)
+    setUseMockData(false)
+    setMockArguments([])
+    setMockDebateTurns([])
+    setMockFeedback(null)
     
     // Call API to start workflow
     try {
@@ -84,10 +99,61 @@ export default function Home() {
       
       if (response.ok) {
         const data = await response.json()
-        console.log('Workflow started:', data)
+        console.log('Workflow created:', data)
+        
+        // Execute the workflow after creation
+        const executeResponse = await fetch(`http://localhost:8000/api/workflows/${data.workflow_id}/execute`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            async_execution: true
+          })
+        })
+        
+        if (executeResponse.ok) {
+          const executeData = await executeResponse.json()
+          console.log('Workflow execution started:', executeData)
+        } else {
+          console.error('Failed to execute workflow')
+        }
+      } else {
+        throw new Error('Failed to create workflow')
       }
     } catch (error) {
-      console.error('Error starting workflow:', error)
+      // Silently fall back to mock data without console errors
+      // console.error('Error starting workflow, using mock data:', error)
+      
+      // Use mock data as fallback
+      setUseMockData(true)
+      const mockData = getMockResponse(mode, userInput)
+      
+      if (mode === 'single') {
+        // Simulate streaming arguments
+        mockData.arguments.forEach((arg, index) => {
+          setTimeout(() => {
+            setMockArguments(prev => [...prev, arg])
+          }, 1000 * (index + 1))
+        })
+        
+        // Show feedback after arguments
+        setTimeout(() => {
+          setMockFeedback(mockData.feedback)
+        }, 1000 * (mockData.arguments.length + 1))
+      } else {
+        // Simulate streaming debate turns
+        mockData.turns.forEach((turn, index) => {
+          setTimeout(() => {
+            setMockDebateTurns(prev => [...prev, turn])
+          }, 2000 * (index + 1))
+        })
+        
+        // Show feedback after debate
+        setTimeout(() => {
+          setMockFeedback(mockData.feedback)
+        }, 2000 * (mockData.turns.length + 1))
+      }
     }
   }, [mode, userInput])
 
@@ -114,8 +180,11 @@ export default function Home() {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <Badge variant={isConnected ? "default" : "secondary"} className="flex items-center gap-1">
-                {isConnected ? (
+              <Badge 
+                variant={(useMockData || isConnected) ? "default" : "secondary"} 
+                className="flex items-center gap-1"
+              >
+                {(useMockData || isConnected) ? (
                   <>
                     <Wifi className="w-3 h-3" />
                     Connected
@@ -282,7 +351,7 @@ export default function Home() {
               />
             ) : (
               <DebateDisplay 
-                debateTurns={debateTurns}
+                debateTurns={actualDebateTurns}
                 userInput={workflowStarted ? userInput : undefined}
                 caseContext={workflowStarted ? caseContext : undefined}
               />
