@@ -18,7 +18,8 @@ COPY pyproject.toml poetry.lock* ./
 
 # Install dependencies
 RUN poetry config virtualenvs.create false \
-    && poetry install --no-interaction --no-ansi --no-root --only main
+    && poetry install --no-interaction --no-ansi --no-root --only main \
+    && pip install weaviate-client
 
 # Production stage
 FROM python:3.10-slim

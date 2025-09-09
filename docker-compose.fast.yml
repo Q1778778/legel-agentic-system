@@ -33,6 +33,7 @@ services:
     container_name: court-sim-weaviate
     ports:
       - "8088:8080"
+      # - "50051:50051"  # Commented out - gRPC port not needed since we skip gRPC checks
     volumes:
       - weaviate_data:/var/lib/weaviate
     environment:

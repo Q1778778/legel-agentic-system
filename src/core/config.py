@@ -32,9 +32,9 @@ class Settings(BaseSettings):
     supabase_service_key: Optional[str] = Field(default=None)
     
     # Weaviate Vector DB
-    weaviate_host: str = Field(default="localhost")
-    weaviate_port: int = Field(default=8088)
-    weaviate_url: str = Field(default="http://localhost:8088")
+    weaviate_host: str = Field(default="weaviate")  # Docker service name
+    weaviate_port: int = Field(default=8080)  # Docker internal port
+    weaviate_url: str = Field(default="http://weaviate:8080")
     weaviate_api_key: Optional[str] = Field(default=None)
     weaviate_class_name: str = Field(default="ArgumentSegments")
     weaviate_vector_size: int = Field(default=1536)

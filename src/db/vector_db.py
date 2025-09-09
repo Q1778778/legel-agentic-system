@@ -23,6 +23,7 @@ class VectorDB:
         self.client = weaviate.connect_to_local(
             host=settings.weaviate_host,
             port=settings.weaviate_port,
+            skip_init_checks=True,  # Skip gRPC health check for local development
         )
         self.class_name = settings.weaviate_class_name
         self.vector_size = settings.weaviate_vector_size
