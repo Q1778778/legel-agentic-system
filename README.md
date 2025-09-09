@@ -2,7 +2,10 @@
 
 A sophisticated legal analysis system that combines Graph RAG (Retrieval-Augmented Generation) with vector search to retrieve past legal defenses and analyze legal arguments. The system uses a hybrid approach combining semantic vector search with graph traversal for enhanced legal reasoning.
 
-Check out the video named legal-argumentation-system for the newest updates
+# Check out the video named legal-argumentation-system for the newest updates #
+
+
+
 
 ## 🚀 Features
 
