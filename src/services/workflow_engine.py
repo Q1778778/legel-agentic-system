@@ -174,7 +174,7 @@ class WorkflowEngine:
                 WorkflowStep.GENERATE_FEEDBACK
             ]
     
-    async def execute_workflow(self, workflow_id: str) -> WorkflowContext:
+    async def _execute_workflow_internal(self, workflow_id: str) -> WorkflowContext:
         """
         Execute a workflow
         
@@ -378,3 +378,97 @@ class WorkflowEngine:
             del self.update_callbacks[workflow_id]
         
         logger.info(f"Cleaned up workflow {workflow_id}")
+    
+    def create_debate_workflow(
+        self,
+        max_turns: int = 3,
+        enable_feedback: bool = True
+    ) -> Dict[str, Any]:
+        """Create a debate workflow definition.
+        
+        Args:
+            max_turns: Maximum debate turns
+            enable_feedback: Whether to include feedback
+            
+        Returns:
+            Workflow definition
+        """
+        return {
+            "id": "debate_workflow",
+            "name": "Debate Workflow",
+            "description": "Multi-agent legal debate workflow",
+            "mode": "debate",
+            "config": {
+                "max_turns": max_turns,
+                "enable_feedback": enable_feedback
+            },
+            "steps": [s.value for s in self._get_workflow_steps("debate")]
+        }
+    
+    def register_workflow(self, workflow_def: Dict[str, Any]):
+        """Register a workflow definition.
+        
+        Args:
+            workflow_def: Workflow definition
+        """
+        # Store workflow definitions if needed
+        # For now, this is a placeholder
+        logger.info(f"Registered workflow: {workflow_def.get('id', 'unknown')}")
+    
+    async def execute_workflow(self, workflow_id: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute a workflow with the given context.
+        
+        This is an adapter method for the API compatibility.
+        
+        Args:
+            workflow_id: Workflow definition ID
+            context: Execution context
+            
+        Returns:
+            Execution result
+        """
+        # Create a new workflow execution
+        mode = "single" if workflow_id == "single_analysis_workflow" else "debate"
+        
+        workflow = self.create_workflow(
+            mode=mode,
+            input_data=context
+        )
+        
+        # Execute the workflow
+        await self._execute_workflow_internal(workflow.workflow_id)
+        
+        # Return execution result
+        return {
+            "id": workflow.workflow_id,
+            "workflow_id": workflow_id,
+            "status": workflow.status.value,
+            "started_at": workflow.created_at.isoformat(),
+            "completed_at": workflow.updated_at.isoformat(),
+            "steps": [s.value for s in workflow.steps_completed],
+            "result": workflow.output_data
+        }
+    
+    async def get_execution_status(self, execution_id: str) -> Dict[str, Any]:
+        """Get workflow execution status.
+        
+        Args:
+            execution_id: Execution ID
+            
+        Returns:
+            Execution status
+        """
+        workflow = self.get_workflow(execution_id)
+        if not workflow:
+            raise ValueError(f"Execution {execution_id} not found")
+        
+        return {
+            "id": execution_id,
+            "status": workflow.status.value,
+            "current_step": workflow.current_step.value if workflow.current_step else None,
+            "steps_completed": [s.value for s in workflow.steps_completed],
+            "created_at": workflow.created_at.isoformat(),
+            "updated_at": workflow.updated_at.isoformat(),
+            "error": workflow.error,
+            "output": workflow.output_data
+        }

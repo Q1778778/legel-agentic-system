@@ -8,6 +8,7 @@ from datetime import datetime
 
 from .base_agent import AgentContext, AgentMessage
 from .lawyer_agents import ProsecutorAgent, DefenderAgent, FeedbackAgent, LawyerAgent
+from .config_validator import ConfigValidator
 from ..services.graphrag_retrieval import GraphRAGRetrieval
 from ..models.schemas import RetrievalRequest
 
@@ -72,30 +73,58 @@ class DebateOrchestrator:
         """
         agents = {}
         
+        # Validate environment
+        env_status = ConfigValidator.validate_environment()
+        
         if self.mode == DebateMode.SINGLE:
+            config = ConfigValidator.get_agent_config("lawyer")
             agents["lawyer"] = LawyerAgent(
-                name="Legal Analyst",
-                role="lawyer",
-                api_key=self.api_key
+                name=config["name"],
+                role=config["role"],
+                api_key=config["api_key"],
+                temperature=config["temperature"],
+                max_tokens=config["max_tokens"],
+                enable_mock=config["enable_mock"]
             )
         else:
+            # Initialize prosecutor
+            prosecutor_config = ConfigValidator.get_agent_config("prosecutor")
             agents["prosecutor"] = ProsecutorAgent(
-                name="Lead Prosecutor",
-                role="prosecutor",
-                api_key=self.api_key
+                name=prosecutor_config["name"],
+                role=prosecutor_config["role"],
+                api_key=prosecutor_config["api_key"],
+                temperature=prosecutor_config["temperature"],
+                max_tokens=prosecutor_config["max_tokens"],
+                enable_mock=prosecutor_config["enable_mock"]
             )
+            
+            # Initialize defender
+            defender_config = ConfigValidator.get_agent_config("defender")
             agents["defender"] = DefenderAgent(
-                name="Defense Attorney",
-                role="defender",
-                api_key=self.api_key
+                name=defender_config["name"],
+                role=defender_config["role"],
+                api_key=defender_config["api_key"],
+                temperature=defender_config["temperature"],
+                max_tokens=defender_config["max_tokens"],
+                enable_mock=defender_config["enable_mock"]
             )
         
         if self.enable_feedback:
+            feedback_config = ConfigValidator.get_agent_config("feedback")
             agents["feedback"] = FeedbackAgent(
-                name="Legal Expert",
-                role="feedback",
-                api_key=self.api_key
+                name=feedback_config["name"],
+                role=feedback_config["role"],
+                api_key=feedback_config["api_key"],
+                temperature=feedback_config["temperature"],
+                max_tokens=feedback_config["max_tokens"],
+                enable_mock=feedback_config["enable_mock"]
             )
+        
+        # Log initialization status
+        if not env_status["openai_api_key"]:
+            logger.warning("Agents initialized in mock mode - no OpenAI API key")
+        else:
+            logger.info(f"Agents initialized with OpenAI API for {self.mode} mode")
         
         return agents
     

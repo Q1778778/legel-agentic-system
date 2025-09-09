@@ -12,6 +12,7 @@ import time
 from .core.config import settings
 from .api import retrieval, health, metrics, agents, workflows, websocket, legal_workflow, legal_analysis, legacy_redirect
 from .db.graph_db import GraphDB
+from .db.vector_db import VectorDB
 
 # Configure structured logging
 structlog.configure(
@@ -48,23 +49,51 @@ request_duration = Histogram(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan manager."""
+    """Application lifespan manager with graceful database handling."""
     # Startup
-    logger.info("Starting Court Argument Simulator", version="0.1.0")
+    logger.info("Starting Legal Analysis System", version="2.0.0")
     
-    # Initialize database connections
+    # Initialize database connections with graceful degradation
+    graph_db = None
+    vector_db = None
+    
+    # Try to connect to Neo4j
     try:
         graph_db = GraphDB()
-        logger.info("Database connections established")
+        if graph_db.is_available():
+            logger.info("Neo4j graph database connected successfully")
+            app.state.graph_db = graph_db
+        else:
+            logger.warning("Neo4j not available - graph features will be limited")
+            app.state.graph_db = None
     except Exception as e:
-        logger.error(f"Failed to initialize databases: {e}")
-        raise
+        logger.error(f"Failed to initialize Neo4j: {e}")
+        app.state.graph_db = None
+    
+    # Try to connect to Qdrant
+    try:
+        vector_db = VectorDB()
+        if vector_db.is_available():
+            logger.info("Qdrant vector database connected successfully")
+            app.state.vector_db = vector_db
+        else:
+            logger.warning("Qdrant not available - vector search will be limited")
+            app.state.vector_db = None
+    except Exception as e:
+        logger.error(f"Failed to initialize Qdrant: {e}")
+        app.state.vector_db = None
+    
+    # Warn if both databases are unavailable
+    if not app.state.graph_db and not app.state.vector_db:
+        logger.error("WARNING: Both databases unavailable - system running in severely degraded mode")
     
     yield
     
     # Shutdown
-    logger.info("Shutting down Court Argument Simulator")
-    graph_db.close()
+    logger.info("Shutting down Legal Analysis System")
+    if graph_db:
+        graph_db.close()
+    # Qdrant client doesn't need explicit closing
 
 
 # Create FastAPI app

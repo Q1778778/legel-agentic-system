@@ -2,6 +2,7 @@
 
 from typing import List, Dict, Any, Optional
 from .base_agent import BaseAgent, AgentMessage, AgentContext
+from .config_validator import ConfigValidator
 import structlog
 
 logger = structlog.get_logger()

@@ -35,6 +35,8 @@ const DEBATE_WORKFLOW_STEPS = [
 export default function Home() {
   const [mode, setMode] = useState<'single' | 'debate'>('single')
   const [workflowStarted, setWorkflowStarted] = useState(false)
+  const [userInput, setUserInput] = useState('')
+  const [caseContext, setCaseContext] = useState('')
   
   // Use WebSocket hook
   const {
@@ -43,7 +45,7 @@ export default function Home() {
     arguments: wsArguments,
     debateTurns,
     feedback
-  } = useWebSocket(workflowStarted ? DEFAULT_WORKFLOW_ID : undefined)
+  } = useWebSocket(workflowStarted ? MOCK_WORKFLOW_ID : undefined)
 
   // Transform arguments for display
   const displayArguments = wsArguments.map((arg, index) => ({
@@ -56,6 +58,12 @@ export default function Home() {
   }))
 
   const handleStartWorkflow = useCallback(async () => {
+    // Validate input
+    if (!userInput.trim()) {
+      alert('Please enter a legal argument or case description')
+      return
+    }
+    
     setWorkflowStarted(true)
     
     // Call API to start workflow
@@ -67,12 +75,10 @@ export default function Home() {
         },
         body: JSON.stringify({
           mode,
-          input_data: {
-            argument: mode === 'single' 
-              ? "The defendant's actions constitute negligence under state law..."
-              : "Complex criminal case requiring debate analysis...",
-            context: "Legal context for the case"
-          }
+          case_id: `demo-${Date.now()}`,
+          issue_text: userInput,
+          max_turns: mode === 'debate' ? 3 : 1,
+          model: "gpt-4o-mini"
         })
       })
       
@@ -83,7 +89,7 @@ export default function Home() {
     } catch (error) {
       console.error('Error starting workflow:', error)
     }
-  }, [mode])
+  }, [mode, userInput])
 
   const currentStep = workflowStatus?.currentStep 
     ? (mode === 'single' ? WORKFLOW_STEPS : DEBATE_WORKFLOW_STEPS).findIndex(s => s.name === workflowStatus.currentStep)
@@ -169,12 +175,47 @@ export default function Home() {
                   </div>
                   
                   {!workflowStarted && (
-                    <button
-                      onClick={handleStartWorkflow}
-                      className="w-full mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-                    >
-                      Start {mode === 'single' ? 'Analysis' : 'Debate'}
-                    </button>
+                    <div className="mt-4 space-y-3">
+                      <div>
+                        <label htmlFor="userInput" className="block text-sm font-medium mb-2">
+                          {mode === 'single' ? 'Legal Argument to Analyze' : 'Case Description'}
+                        </label>
+                        <textarea
+                          id="userInput"
+                          value={userInput}
+                          onChange={(e) => setUserInput(e.target.value)}
+                          placeholder={mode === 'single' 
+                            ? "Enter your legal argument here (e.g., 'The defendant's actions constitute negligence under state law...')"
+                            : "Enter the case facts and issues for debate (e.g., 'Criminal case involving fraud charges...')"}
+                          className="w-full min-h-[100px] px-3 py-2 border rounded-lg bg-background text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                          rows={4}
+                        />
+                      </div>
+                      
+                      {mode === 'debate' && (
+                        <div>
+                          <label htmlFor="caseContext" className="block text-sm font-medium mb-2">
+                            Additional Context (Optional)
+                          </label>
+                          <textarea
+                            id="caseContext"
+                            value={caseContext}
+                            onChange={(e) => setCaseContext(e.target.value)}
+                            placeholder="Any additional context or specific focus areas for the debate"
+                            className="w-full min-h-[60px] px-3 py-2 border rounded-lg bg-background text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                            rows={2}
+                          />
+                        </div>
+                      )}
+                      
+                      <button
+                        onClick={handleStartWorkflow}
+                        className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={!userInput.trim()}
+                      >
+                        Start {mode === 'single' ? 'Analysis' : 'Debate'}
+                      </button>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -235,9 +276,16 @@ export default function Home() {
           {/* Right Column - Arguments/Debate */}
           <div className="lg:col-span-2">
             {mode === 'single' ? (
-              <ArgumentDisplay arguments={displayArguments} />
+              <ArgumentDisplay 
+                arguments={displayArguments}
+                userInput={workflowStarted ? userInput : undefined}
+              />
             ) : (
-              <DebateDisplay debateTurns={debateTurns} />
+              <DebateDisplay 
+                debateTurns={debateTurns}
+                userInput={workflowStarted ? userInput : undefined}
+                caseContext={workflowStarted ? caseContext : undefined}
+              />
             )}
           </div>
         </div>

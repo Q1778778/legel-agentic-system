@@ -18,9 +18,10 @@ interface Argument {
 interface ArgumentDisplayProps {
   arguments: Argument[]
   className?: string
+  userInput?: string
 }
 
-const ArgumentDisplay: React.FC<ArgumentDisplayProps> = ({ arguments: args, className }) => {
+const ArgumentDisplay: React.FC<ArgumentDisplayProps> = ({ arguments: args, className, userInput }) => {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -48,6 +49,34 @@ const ArgumentDisplay: React.FC<ArgumentDisplayProps> = ({ arguments: args, clas
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[500px] pr-4" ref={scrollRef}>
+          {/* Display user input first if provided */}
+          {userInput && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 pb-4 border-b"
+            >
+              <div className="flex gap-3">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center">
+                    <User className="w-6 h-6 text-blue-500" />
+                  </div>
+                </div>
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">User Input</span>
+                    <Badge variant="outline" className="text-xs">
+                      Initial Request
+                    </Badge>
+                  </div>
+                  <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                    <p className="text-sm whitespace-pre-wrap">{userInput}</p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+          
           <AnimatePresence>
             {args.map((arg, index) => (
               <motion.div

@@ -288,3 +288,32 @@ class AnalysisResponse(BaseModel):
                 "generation_time_ms": 3500
             }
         }
+
+
+# Legacy schemas for backward compatibility
+class SimulationArtifact(BaseModel):
+    """Legacy simulation artifact - same as AnalysisArtifact."""
+    text: str
+    confidence: float = Field(ge=0, le=1)
+    role: str
+    citations_used: List[str] = Field(default_factory=list)
+
+
+class SimulationRequest(BaseModel):
+    """Legacy request for simulation - similar to AnalysisRequest."""
+    bundles: Optional[List[ArgumentBundle]] = None
+    context: Optional[str] = None
+    include_prosecution: bool = True
+    include_judge: bool = True
+    max_length: int = Field(default=2000, ge=100, le=10000)
+    tenant: str = "default"
+
+
+class SimulationResponse(BaseModel):
+    """Legacy response from simulation - similar to AnalysisResponse."""
+    defense: Optional[SimulationArtifact] = None
+    prosecution: Optional[SimulationArtifact] = None
+    judge: Optional[SimulationArtifact] = None
+    script: Optional[SimulationArtifact] = None
+    overall_confidence: float = Field(ge=0, le=1)
+    generation_time_ms: int

@@ -252,17 +252,27 @@ class WebSocketManager:
         """
         manager = self.get_session(session_id)
         if not manager:
-            return
+            logger.warning(f"No session found for {session_id}, creating new session")
+            manager = self.create_session(session_id)
+        
+        # Convert AgentMessage to dict if needed
+        if hasattr(message, 'model_dump'):
+            message_dict = message.model_dump()
+        elif hasattr(message, 'dict'):
+            message_dict = message.dict()
+        else:
+            message_dict = {
+                "role": getattr(message, 'role', 'unknown'),
+                "content": getattr(message, 'content', ''),
+                "citations": getattr(message, 'citations', []),
+                "confidence": getattr(message, 'confidence', 0.0),
+                "metadata": getattr(message, 'metadata', {}),
+                "timestamp": getattr(message, 'timestamp', datetime.utcnow()).isoformat()
+            }
         
         event = WebSocketEvent(
             WebSocketEventType.AGENT_MESSAGE,
-            {
-                "role": message.role,
-                "content": message.content,
-                "citations": message.citations,
-                "confidence": message.confidence,
-                "metadata": message.metadata
-            },
+            message_dict,
             session_id
         )
         

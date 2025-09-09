@@ -2,7 +2,7 @@
 
 from typing import List, Dict, Any, Optional, Tuple
 from neo4j import GraphDatabase, Driver, Session
-from neo4j.exceptions import Neo4jError
+from neo4j.exceptions import Neo4jError, ServiceUnavailable, AuthError
 import structlog
 from tenacity import retry, stop_after_attempt, wait_exponential
 from datetime import datetime

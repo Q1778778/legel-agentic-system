@@ -23,9 +23,11 @@ interface DebateTurn {
 interface DebateDisplayProps {
   debateTurns: DebateTurn[]
   className?: string
+  userInput?: string
+  caseContext?: string
 }
 
-const DebateDisplay: React.FC<DebateDisplayProps> = ({ debateTurns, className }) => {
+const DebateDisplay: React.FC<DebateDisplayProps> = ({ debateTurns, className, userInput, caseContext }) => {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -105,6 +107,29 @@ const DebateDisplay: React.FC<DebateDisplayProps> = ({ debateTurns, className })
 
           <TabsContent value="timeline">
             <ScrollArea className="h-[500px] pr-4" ref={scrollRef}>
+              {/* Display user input first if provided */}
+              {userInput && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-6 pb-4 border-b"
+                >
+                  <div className="flex items-center gap-2 mb-4">
+                    <Badge variant="secondary">Case Input</Badge>
+                  </div>
+                  <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                    <h4 className="font-semibold mb-2 text-sm">Case Description:</h4>
+                    <p className="text-sm whitespace-pre-wrap mb-3">{userInput}</p>
+                    {caseContext && (
+                      <>
+                        <h4 className="font-semibold mb-2 text-sm">Additional Context:</h4>
+                        <p className="text-sm whitespace-pre-wrap text-muted-foreground">{caseContext}</p>
+                      </>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+              
               <AnimatePresence>
                 {debateTurns.map((turn, index) => (
                   <motion.div

@@ -86,6 +86,14 @@ class Settings(BaseSettings):
     retrieval_top_k: int = Field(default=10)
     retrieval_timeout: int = Field(default=10)  # seconds
     
+    # Database Connection Settings
+    db_connection_timeout: int = Field(default=10)  # seconds
+    db_retry_attempts: int = Field(default=5)
+    db_retry_min_wait: int = Field(default=2)  # seconds
+    db_retry_max_wait: int = Field(default=30)  # seconds
+    db_connection_pool_size: int = Field(default=50)
+    db_graceful_degradation: bool = Field(default=True)  # Allow running without DBs
+    
     @validator("cors_origins", pre=True)
     def parse_cors_origins(cls, v):
         """Parse CORS origins from string to list."""

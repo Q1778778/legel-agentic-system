@@ -5,12 +5,16 @@ from typing import Dict, Any, Optional
 import uuid
 import structlog
 
+# Import agent components
 from ..agents import (
     DebateOrchestrator,
+    DebateMode,
+    DebateState,
     WorkflowEngine,
-    ws_manager
+    ws_manager,
+    AgentMessage,
+    ConfigValidator
 )
-from ..agents.orchestrator import DebateMode
 from ..models.schemas import ArgumentBundle
 from ..core.config import settings
 
@@ -52,6 +56,73 @@ def init_workflows():
 init_workflows()
 
 
+@router.get("/health")
+async def agent_health_check() -> Dict[str, Any]:
+    """Check agent system health and configuration.
+    
+    Returns:
+        Health status and configuration info
+    """
+    try:
+        # Validate environment
+        env_status = ConfigValidator.validate_environment()
+        
+        # Get model configuration
+        model_config = ConfigValidator.get_model_config()
+        
+        # Check if API key is available
+        api_key = ConfigValidator.get_openai_api_key()
+        
+        return {
+            "status": "healthy",
+            "mode": "ai" if api_key else "mock",
+            "environment": env_status,
+            "model_config": model_config,
+            "active_debates": len(active_debates),
+            "workflows_registered": len(workflow_engine.workflows),
+            "websocket_sessions": len(ws_manager.sessions)
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@router.post("/validate-api-key")
+async def validate_api_key(api_key: Optional[str] = None) -> Dict[str, Any]:
+    """Validate OpenAI API key.
+    
+    Args:
+        api_key: Optional API key to validate (uses env var if not provided)
+        
+    Returns:
+        Validation result
+    """
+    try:
+        if not api_key:
+            api_key = ConfigValidator.get_openai_api_key()
+        
+        if not api_key:
+            return {
+                "valid": False,
+                "message": "No API key provided or found in environment"
+            }
+        
+        is_valid = await ConfigValidator.validate_openai_connection(api_key)
+        
+        return {
+            "valid": is_valid,
+            "message": "API key is valid" if is_valid else "API key validation failed"
+        }
+    except Exception as e:
+        return {
+            "valid": False,
+            "message": f"Validation error: {str(e)}"
+        }
+
+
 @router.post("/debate/start")
 async def start_debate(
     case_id: str,
@@ -85,13 +156,12 @@ async def start_debate(
         # Create WebSocket session
         ws_manager.create_session(session_id)
         
-        # Create orchestrator
-        debate_mode = DebateMode(mode)
+        # Create orchestrator with services implementation
+        debate_mode = DebateMode(mode if mode in ['single', 'debate'] else 'debate')
         orchestrator = DebateOrchestrator(
             mode=debate_mode,
             max_turns=max_turns,
-            enable_feedback=enable_feedback,
-            api_key=settings.openai_api_key
+            model="gpt-4o-mini"  # Use the model parameter instead of api_key
         )
         
         # Store orchestrator
@@ -153,8 +223,21 @@ async def execute_turn(session_id: str) -> Dict[str, Any]:
     orchestrator = active_debates[session_id]
     
     try:
-        # Execute turn
-        messages = await orchestrator.execute_turn()
+        # Execute turn using services implementation
+        result = await orchestrator.execute_single_turn()
+        
+        # Convert result to messages list
+        messages = []
+        if result:
+            # Create a simple message object for compatibility
+            msg = AgentMessage(
+                role=result.get('role', 'unknown'),
+                content=result.get('content', ''),
+                citations=result.get('citations', []),
+                confidence=result.get('confidence', 0.0),
+                metadata=result.get('metadata', {})
+            )
+            messages.append(msg)
         
         # Broadcast messages
         for message in messages:
@@ -168,7 +251,7 @@ async def execute_turn(session_id: str) -> Dict[str, Any]:
         )
         
         # Check if debate is complete
-        if orchestrator.state == "completed":
+        if orchestrator.state == DebateState.COMPLETED:
             summary = orchestrator.get_debate_summary()
             await ws_manager.broadcast_debate_end(session_id, summary)
         
@@ -184,7 +267,7 @@ async def execute_turn(session_id: str) -> Dict[str, Any]:
                 }
                 for msg in messages
             ],
-            "state": orchestrator.state
+            "state": orchestrator.state.value if hasattr(orchestrator.state, 'value') else str(orchestrator.state)
         }
         
     except Exception as e:
@@ -339,7 +422,15 @@ async def run_debate_background(session_id: str, orchestrator: DebateOrchestrato
         orchestrator: Debate orchestrator
     """
     try:
-        async for message in orchestrator.stream_debate():
+        async for message_dict in orchestrator.stream_debate():
+            # Convert dict to AgentMessage for WebSocket
+            message = AgentMessage(
+                role=message_dict.get('role', 'unknown'),
+                content=message_dict.get('content', ''),
+                citations=message_dict.get('citations', []),
+                confidence=message_dict.get('confidence', 0.0),
+                metadata=message_dict.get('metadata', {})
+            )
             await ws_manager.broadcast_agent_message(session_id, message)
             
             # Broadcast turn complete after each pair of messages

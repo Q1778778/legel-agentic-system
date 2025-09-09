@@ -43,8 +43,12 @@ USER appuser
 EXPOSE 8000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8000/api/v1/health')"
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=5 \
+    CMD python -c "import requests; r = requests.get('http://localhost:8000/api/v1/health/ready'); exit(0 if r.status_code == 200 else 1)"
 
-# Run application
-CMD ["python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Create entrypoint script
+RUN echo '#!/bin/bash\npython scripts/wait_for_databases.py && python -m uvicorn src.main:app --host 0.0.0.0 --port 8000' > /app/entrypoint.sh && \
+    chmod +x /app/entrypoint.sh
+
+# Run application with database wait
+CMD ["/bin/bash", "/app/entrypoint.sh"]

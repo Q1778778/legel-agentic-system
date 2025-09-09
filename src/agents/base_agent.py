@@ -7,6 +7,7 @@ import structlog
 from openai import AsyncOpenAI
 from datetime import datetime
 import json
+import os
 
 logger = structlog.get_logger()
 
@@ -58,10 +59,11 @@ class BaseAgent(ABC):
         self,
         name: str,
         role: str,
-        model: str = "gpt-4-turbo-preview",
+        model: str = "gpt-4o-mini",
         temperature: float = 0.7,
         max_tokens: int = 2000,
-        api_key: Optional[str] = None
+        api_key: Optional[str] = None,
+        enable_mock: bool = False
     ):
         """Initialize base agent.
         
@@ -72,13 +74,33 @@ class BaseAgent(ABC):
             temperature: Generation temperature
             max_tokens: Maximum tokens to generate
             api_key: OpenAI API key
+            enable_mock: Enable mock mode when API key is missing
         """
         self.name = name
         self.role = role
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.client = AsyncOpenAI(api_key=api_key) if api_key else None
+        self.enable_mock = enable_mock
+        
+        # Try to get API key from environment if not provided
+        if not api_key:
+            api_key = os.getenv("OPENAI_API_KEY")
+        
+        # Initialize client only if we have a valid API key
+        if api_key and api_key.startswith("sk-"):
+            try:
+                self.client = AsyncOpenAI(api_key=api_key)
+                logger.info(f"{name}: Initialized with OpenAI API")
+            except Exception as e:
+                logger.error(f"{name}: Failed to initialize OpenAI client: {e}")
+                self.client = None
+                self.enable_mock = True
+        else:
+            self.client = None
+            self.enable_mock = True
+            logger.warning(f"{name}: No valid API key, using mock mode")
+        
         self.tools = self._register_tools()
         
     @abstractmethod
@@ -233,7 +255,72 @@ class BaseAgent(ABC):
         Returns:
             Mock response content
         """
-        return f"Mock {self.role} response based on {len(messages)} messages"
+        import random
+        
+        # Extract the last user message for context
+        user_message = ""
+        for msg in reversed(messages):
+            if msg.get("role") == "user":
+                user_message = msg.get("content", "")[:200]
+                break
+        
+        # Generate role-specific mock responses
+        if self.role == "prosecutor":
+            responses = [
+                f"The prosecution strongly argues that based on the evidence presented regarding '{user_message}', "
+                f"the defendant's actions clearly violate established legal precedent. "
+                f"As demonstrated in State v. Johnson, 485 U.S. 234 (1987), similar circumstances "
+                f"have consistently resulted in liability. The facts undeniably support our position.",
+                
+                f"Your Honor, the prosecution maintains that '{user_message}' represents a clear violation "
+                f"of statutory requirements under §523 of the relevant code. The defendant's conduct "
+                f"shows willful disregard for legal obligations, as established in precedent cases."
+            ]
+        elif self.role == "defender":
+            responses = [
+                f"The defense respectfully disagrees with the prosecution's interpretation of '{user_message}'. "
+                f"Our client's actions were entirely within their legal rights, as protected by "
+                f"constitutional provisions and affirmed in Miller v. State, 392 F.3d 112 (2005). "
+                f"The prosecution has failed to meet their burden of proof.",
+                
+                f"Your Honor, regarding '{user_message}', the defense submits that reasonable doubt exists "
+                f"due to procedural irregularities and lack of direct evidence. The precedent in "
+                f"Thompson v. Commonwealth clearly protects our client's position."
+            ]
+        elif self.role == "feedback":
+            responses = [
+                f"After analyzing the arguments regarding '{user_message}', both sides present compelling points. "
+                f"The prosecution's citation of relevant precedents is strong, earning a score of 7/10. "
+                f"However, the defense effectively identifies procedural concerns that could impact the outcome. "
+                f"Overall debate quality: 8/10. Recommendation: Focus on jurisdictional questions.",
+                
+                f"Legal Analysis: The debate on '{user_message}' shows good command of relevant law. "
+                f"Strengths: Both parties cite appropriate precedents. "
+                f"Weaknesses: Missing discussion of recent regulatory changes. "
+                f"Predicted outcome: 60% likelihood in favor of defense based on current arguments."
+            ]
+        else:  # lawyer/analyst
+            responses = [
+                f"Legal analysis of '{user_message}': This issue involves complex interplay between "
+                f"statutory requirements and constitutional protections. Key precedents include "
+                f"Johnson v. State and Miller v. Commonwealth. Recommended strategy: Focus on "
+                f"distinguishing factual circumstances from cited cases.",
+                
+                f"Regarding '{user_message}', the legal framework suggests multiple viable approaches. "
+                f"Primary consideration should be given to jurisdictional issues and applicable "
+                f"statute of limitations. Case law supports both aggressive and defensive postures."
+            ]
+        
+        # Select a random response for variety
+        response = random.choice(responses)
+        
+        # Add mock citations for realism
+        if random.random() > 0.5:
+            response += f"\n\nAdditional citations: {random.randint(100, 999)} U.S. {random.randint(100, 999)} "
+            response += f"({random.randint(1980, 2023)})"
+        
+        logger.info(f"{self.name}: Generated mock response for {self.role}")
+        return response
     
     def _extract_citations(self, content: str) -> List[str]:
         """Extract legal citations from content.
