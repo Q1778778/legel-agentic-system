@@ -5,7 +5,7 @@ uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 
 # Database Clients
-qdrant-client==1.7.0
+weaviate-client==4.9.3
 neo4j==5.15.0
 redis==5.0.1
 

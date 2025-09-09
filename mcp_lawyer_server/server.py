@@ -17,7 +17,7 @@ from mcp.server.stdio import stdio_server
 from mcp.types import (
     Tool,
     TextContent,
-    ToolResult,
+    CallToolResult,
     INTERNAL_ERROR
 )
 

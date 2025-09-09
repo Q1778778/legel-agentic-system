@@ -31,12 +31,13 @@ class Settings(BaseSettings):
     supabase_key: Optional[str] = Field(default=None)
     supabase_service_key: Optional[str] = Field(default=None)
     
-    # Qdrant Vector DB
-    qdrant_host: str = Field(default="localhost")
-    qdrant_port: int = Field(default=6333)
-    qdrant_api_key: Optional[str] = Field(default=None)
-    qdrant_collection_name: str = Field(default="argument_segments")
-    qdrant_vector_size: int = Field(default=1536)
+    # Weaviate Vector DB
+    weaviate_host: str = Field(default="localhost")
+    weaviate_port: int = Field(default=8088)
+    weaviate_url: str = Field(default="http://localhost:8088")
+    weaviate_api_key: Optional[str] = Field(default=None)
+    weaviate_class_name: str = Field(default="ArgumentSegments")
+    weaviate_vector_size: int = Field(default=1536)
     
     # Neo4j Graph DB
     neo4j_uri: str = Field(default="bolt://localhost:7687")
@@ -49,6 +50,10 @@ class Settings(BaseSettings):
     embedding_model: str = Field(default="text-embedding-3-small")
     llm_model: str = Field(default="gpt-4-turbo-preview")
     llm_temperature: float = Field(default=0.7)
+    
+    # Azure OpenAI (for NLWeb)
+    azure_openai_api_key: Optional[str] = Field(default=None)
+    azure_openai_endpoint: Optional[str] = Field(default=None)
     
     # Legal APIs
     courtlistener_api_key: Optional[str] = Field(default=None)
@@ -104,9 +109,9 @@ class Settings(BaseSettings):
         return v
     
     @property
-    def qdrant_url(self) -> str:
-        """Build Qdrant URL from host and port."""
-        return f"http://{self.qdrant_host}:{self.qdrant_port}"
+    def weaviate_url_full(self) -> str:
+        """Build full Weaviate URL from host and port."""
+        return f"http://{self.weaviate_host}:{self.weaviate_port}"
     
     @property
     def is_production(self) -> bool:

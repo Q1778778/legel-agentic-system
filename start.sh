@@ -44,6 +44,9 @@ cleanup() {
     if [ ! -z "$STREAMLIT_PID" ]; then
         kill $STREAMLIT_PID 2>/dev/null || true
     fi
+    if [ ! -z "$NLWEB_PID" ]; then
+        kill $NLWEB_PID 2>/dev/null || true
+    fi
     print_success "Services stopped"
 }
 
@@ -122,6 +125,90 @@ main() {
     docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "court-sim|court-argument" || true
     echo
 
+    # Start NLWeb service (modify config to use port 8080)
+    if [ -d "NLWeb" ]; then
+        print_info "Starting NLWeb service..."
+        
+        # Source .env file to export environment variables
+        if [ -f ".env" ]; then
+            print_info "Loading environment variables from .env..."
+            export $(grep -v '^#' .env | xargs)
+        fi
+        
+        # First, modify the config file to use port 8080
+        if [ -f "NLWeb/config/config_webserver.yaml" ]; then
+            # Backup original config
+            cp NLWeb/config/config_webserver.yaml NLWeb/config/config_webserver.yaml.bak 2>/dev/null
+            # Change port from 8000 to 8080
+            sed -i '' 's/port: 8000/port: 8080/g' NLWeb/config/config_webserver.yaml 2>/dev/null || \
+            sed -i 's/port: 8000/port: 8080/g' NLWeb/config/config_webserver.yaml
+            print_info "Changed NLWeb port to 8080"
+        fi
+        
+        # Navigate to NLWeb python directory
+        cd NLWeb/code/python
+        
+        # Source environment variables if available
+        if [ -f "../set_keys.sh" ]; then
+            print_info "Loading NLWeb environment variables..."
+            source ../set_keys.sh
+        elif [ -f "../../set_keys.sh" ]; then
+            source ../../set_keys.sh
+        fi
+        
+        # Set environment variable for config path
+        export CONFIG_PATH="../../config"
+        
+        # Start NLWeb server normally
+        python3 -m webserver.aiohttp_server > /tmp/nlweb.log 2>&1 &
+        NLWEB_PID=$!
+        cd ../../..
+        
+        # Wait for NLWeb to start
+        sleep 4
+        
+        # Check if NLWeb started successfully
+        if ps -p $NLWEB_PID > /dev/null; then
+            # NLWeb now runs on port 8080
+            if curl -s http://localhost:8080/health > /dev/null 2>&1; then
+                print_success "NLWeb service started successfully on port 8080"
+            else
+                print_warning "NLWeb process started but health check failed"
+            fi
+        else
+            print_warning "NLWeb service failed to start (check /tmp/nlweb.log for details)"
+            NLWEB_PID=""
+        fi
+    else
+        print_warning "NLWeb directory not found, skipping NLWeb service"
+    fi
+    echo
+    
+    # Check MCP Servers availability
+    print_info "Checking MCP servers..."
+    
+    # Run MCP demo script to show status
+    if [ -f "mcp_demo.py" ]; then
+        python3 mcp_demo.py | while IFS= read -r line; do
+            if [[ $line == *"✅"* ]]; then
+                print_success "${line#*✅ }"
+            elif [[ $line == *"Status: Available"* ]]; then
+                echo "    $line"
+            fi
+        done
+    else
+        # Fallback if demo script doesn't exist
+        if [ -d "mcp_lawyer_server" ]; then
+            print_success "MCP Lawyer Server configured (stdio mode)"
+        fi
+        if [ -d "mcp_case_extractor" ]; then
+            print_success "MCP Case Extractor configured (stdio mode)"
+        fi
+    fi
+    
+    print_info "MCP servers use stdio protocol and connect on-demand"
+    echo
+
     # Start Streamlit frontend
     print_info "Starting frontend service (Streamlit)..."
     python3 -m streamlit run web_app.py --server.port 8501 --server.headless true &
@@ -147,12 +234,18 @@ main() {
     echo "Access URLs:"
     echo "  - Frontend UI: http://localhost:8501"
     echo "  - API Documentation: http://localhost:8000/docs"
+    if [ ! -z "$NLWEB_PID" ]; then
+        echo "  - NLWeb Interface: http://localhost:8080"
+    fi
     echo "  - Neo4j Browser: http://localhost:7474"
     echo "  - Qdrant Dashboard: http://localhost:6333/dashboard"
     echo
     echo "View logs:"
     echo "  - Backend logs: docker logs -f court-argument-simulator"
     echo "  - All containers: docker-compose -f docker-compose.fast.yml logs -f"
+    if [ ! -z "$NLWEB_PID" ]; then
+        echo "  - NLWeb logs: tail -f /tmp/nlweb.log"
+    fi
     echo
     echo "Stop services:"
     echo "  - Press Ctrl+C to stop all services"
