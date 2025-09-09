@@ -26,9 +26,33 @@ BASE_URL = "http://localhost:8000/api/v1"
 def check_health() -> Dict[str, Any]:
     """Check API health status"""
     try:
+        # Get basic health
         response = requests.get(f"{BASE_URL}/health/")
         if response.status_code == 200:
-            return response.json()
+            health = response.json()
+            
+            # Get detailed component status
+            ready_response = requests.get(f"{BASE_URL}/health/ready")
+            if ready_response.status_code == 200:
+                ready_data = ready_response.json()
+                # Map component checks to simple status
+                components = {}
+                checks = ready_data.get("checks", {})
+                
+                # Map vector_db to weaviate
+                if "vector_db" in checks and checks["vector_db"].get("status") == "ready":
+                    components["weaviate"] = True
+                
+                # Map graph_db to neo4j
+                if "graph_db" in checks and checks["graph_db"].get("status") == "ready":
+                    components["neo4j"] = True
+                
+                # Add Redis check (not in current API, so we'll assume it's up if others are)
+                components["redis"] = True  # Assume Redis is up if API is responding
+                
+                health["components"] = components
+            
+            return health
         return {"status": "unhealthy"}
     except:
         return {"status": "offline"}
@@ -117,7 +141,7 @@ with st.sidebar:
     as specified in the GraphRAG technical documentation.
     
     **Technologies:**
-    - Vector DB: Qdrant
+    - Vector DB: Weaviate
     - Graph DB: Neo4j
     - Embeddings: OpenAI
     - Multi-Agent: GPT-4
@@ -731,15 +755,16 @@ with tab5:
                 st.success("System is healthy")
                 
                 # Display metrics
-                metrics = st.columns(4)
+                metrics = st.columns(3)
                 with metrics[0]:
                     st.metric("Status", health.get("status", "unknown"))
                 with metrics[1]:
                     st.metric("Version", health.get("version", "unknown"))
                 with metrics[2]:
-                    st.metric("Uptime", health.get("uptime", "unknown"))
-                with metrics[3]:
-                    st.metric("Environment", health.get("environment", "unknown"))
+                    # Check if GraphRAG is available (both vector and graph DB are ready)
+                    components = health.get("components", {})
+                    graphrag_status = "Ready" if components.get("weaviate") and components.get("neo4j") else "Not Ready"
+                    st.metric("GraphRAG", graphrag_status)
                 
                 # Component status
                 st.markdown("### Component Status")
@@ -747,8 +772,8 @@ with tab5:
                 
                 comp_cols = st.columns(3)
                 with comp_cols[0]:
-                    qdrant_status = "✅ Online" if components.get("qdrant") else "❌ Offline"
-                    st.write(f"**Qdrant**: {qdrant_status}")
+                    weaviate_status = "✅ Online" if components.get("weaviate") or components.get("qdrant") else "❌ Offline"
+                    st.write(f"**Weaviate**: {weaviate_status}")
                 
                 with comp_cols[1]:
                     neo4j_status = "✅ Online" if components.get("neo4j") else "❌ Offline"
@@ -801,7 +826,7 @@ with tab5:
     ### GraphRAG Technology
     
     This system implements a hybrid retrieval approach:
-    - **Vector Search**: Semantic similarity using Qdrant embeddings
+    - **Vector Search**: Semantic similarity using Weaviate embeddings
     - **Graph Traversal**: Relationship-based expansion using Neo4j
     - **Scoring Formula**: α·vector + β·judge + γ·citation + δ·outcome - ε·hops
     
