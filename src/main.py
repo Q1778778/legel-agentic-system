@@ -10,7 +10,7 @@ from prometheus_client import make_asgi_app, Counter, Histogram
 import time
 
 from .core.config import settings
-from .api import retrieval, legal_analysis, health, metrics, smart_analysis, simple_analysis
+from .api import retrieval, legal_analysis, health, metrics, smart_analysis, simple_analysis, case_management, mcp_endpoints
 from .db.graph_db import GraphDB
 
 # Configure structured logging
@@ -175,6 +175,16 @@ app.include_router(
     simple_analysis.router,
     prefix=f"{settings.api_prefix}/simple",
     tags=["simple"],
+)
+
+app.include_router(
+    case_management.router,
+    tags=["cases"],
+)
+
+app.include_router(
+    mcp_endpoints.router,
+    tags=["mcp"],
 )
 
 

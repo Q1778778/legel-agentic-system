@@ -1,0 +1,126 @@
+{
+  "cases": {
+    "test_case_001": {
+      "id": "test_case_001",
+      "title": "Test Contract Dispute",
+      "description": "A test case for contract breach",
+      "status": "active",
+      "parties": [
+        {
+          "name": "Test Corp A",
+          "role": "plaintiff"
+        },
+        {
+          "name": "Test Corp B",
+          "role": "defendant"
+        }
+      ],
+      "court_info": null,
+      "issues": [
+        "contract_breach",
+        "damages"
+      ],
+      "extraction_method": "manual",
+      "extraction_session_id": null,
+      "created_at": "2025-09-09T12:00:31.493191",
+      "updated_at": "2025-09-09T12:00:31.493534",
+      "created_by": "test_user",
+      "documents": [],
+      "timeline": [
+        {
+          "id": "60141030-3ed6-4c7a-a882-db075556822b",
+          "date": "2025-09-09T12:00:31.493191",
+          "event_type": "case_created",
+          "description": "Case created via manual",
+          "created_by": "test_user"
+        },
+        {
+          "id": "cf08c503-389d-43f1-a329-c66f1edbe991",
+          "date": "2025-09-09T12:00:31.493395",
+          "event_type": "status_changed",
+          "description": "Status changed to active",
+          "created_by": null
+        },
+        {
+          "id": "bd7ef880-1836-4447-a7d7-3c52aaea47d4",
+          "date": "2025-09-09T12:00:31.493532",
+          "event_type": "document_added",
+          "description": "Document added: test_contract.pdf",
+          "created_by": null
+        }
+      ]
+    },
+    "integration_test_001": {
+      "id": "integration_test_001",
+      "title": "Employment Discrimination Case",
+      "description": "Discrimination based on age in workplace",
+      "status": "draft",
+      "parties": [
+        {
+          "name": "Jane Smith",
+          "role": "plaintiff"
+        },
+        {
+          "name": "ABC Company",
+          "role": "defendant"
+        }
+      ],
+      "court_info": null,
+      "issues": [
+        "employment_discrimination",
+        "wrongful_termination"
+      ],
+      "extraction_method": "chat",
+      "extraction_session_id": "mock_session_123",
+      "created_at": "2025-09-09T12:00:31.493784",
+      "updated_at": "2025-09-09T12:00:31.493784",
+      "created_by": null,
+      "documents": [],
+      "timeline": [
+        {
+          "id": "47e6b521-7910-4726-9a0d-e3d646dda521",
+          "date": "2025-09-09T12:00:31.493784",
+          "event_type": "case_created",
+          "description": "Case created via chat",
+          "created_by": null
+        }
+      ]
+    }
+  },
+  "documents": {
+    "test_case_001": [
+      {
+        "id": "47607ed2-1899-499e-812b-3465a34b5c72",
+        "filename": "test_contract.pdf",
+        "file_type": "pdf",
+        "upload_date": "2025-09-09T12:00:31.493527",
+        "extracted_data": {
+          "key_terms": [
+            "payment",
+            "delivery"
+          ]
+        },
+        "case_id": "test_case_001"
+      }
+    ],
+    "integration_test_001": []
+  },
+  "analysis_sessions": {
+    "test_session_001": {
+      "id": "test_session_001",
+      "case_id": "test_case_001",
+      "started_at": "2025-09-09T12:00:31.493647",
+      "status": "active",
+      "chat_history": [
+        {
+          "role": "user",
+          "content": "What are the key legal issues?"
+        },
+        {
+          "role": "assistant",
+          "content": "The main issues are contract breach and damages."
+        }
+      ]
+    }
+  }
+}

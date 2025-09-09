@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legal Intelligence System - 法律智能系统</title>
+    
+    <!-- Apple系统字体 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    
+    <!-- 样式文件 -->
+    <link rel="stylesheet" href="css/apple-style.css">
+    <link rel="stylesheet" href="css/animations.css">
+    
+    <!-- 图标 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons@latest/iconfont/tabler-icons.min.css">
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="nav-bar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <svg class="nav-logo" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2L2 7V12C2 16.5 4.23 20.68 7.62 23.15L12 23L16.38 23.15C19.77 20.68 22 16.5 22 12V7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M12 11V17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M12 8H12.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>Legal AI</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="#" class="nav-link active">智能分析</a></li>
+                <li><a href="#" class="nav-link">案件管理</a></li>
+                <li><a href="#" class="nav-link">知识图谱</a></li>
+                <li><a href="#" class="nav-link">文档中心</a></li>
+            </ul>
+            <div class="nav-actions">
+                <button class="btn-icon" id="themeToggle">
+                    <i class="ti ti-sun"></i>
+                </button>
+                <button class="btn-icon" id="notificationBtn">
+                    <i class="ti ti-bell"></i>
+                    <span class="badge">3</span>
+                </button>
+                <button class="btn-icon" id="profileBtn">
+                    <i class="ti ti-user-circle"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 英雄区域 -->
+    <section class="hero">
+        <div class="hero-content">
+            <h1 class="hero-title">
+                <span class="gradient-text">智能法律分析</span>
+                <br>
+                <span class="hero-subtitle">让每个决策都有据可依</span>
+            </h1>
+            <p class="hero-description">
+                基于先进的AI技术和海量法律数据，为您提供精准、高效的法律分析服务
+            </p>
+            <div class="hero-actions">
+                <button class="btn btn-primary" id="startAnalysis">
+                    开始分析
+                    <i class="ti ti-arrow-right"></i>
+                </button>
+                <button class="btn btn-secondary" id="viewDemo">
+                    查看演示
+                    <i class="ti ti-player-play"></i>
+                </button>
+            </div>
+        </div>
+        <div class="hero-visual">
+            <div class="floating-card card-1">
+                <div class="card-icon">
+                    <i class="ti ti-scale"></i>
+                </div>
+                <h3>合同分析</h3>
+                <p>智能识别风险条款</p>
+            </div>
+            <div class="floating-card card-2">
+                <div class="card-icon">
+                    <i class="ti ti-brain"></i>
+                </div>
+                <h3>案例推理</h3>
+                <p>基于历史案例预测</p>
+            </div>
+            <div class="floating-card card-3">
+                <div class="card-icon">
+                    <i class="ti ti-shield-check"></i>
+                </div>
+                <h3>合规检查</h3>
+                <p>自动化合规审查</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- 功能卡片区 -->
+    <section class="features">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title">强大功能，一触即达</h2>
+                <p class="section-subtitle">为法律专业人士量身定制的智能工具集</p>
+            </div>
+            <div class="feature-grid">
+                <div class="feature-card" data-feature="smart-analysis">
+                    <div class="feature-icon">
+                        <i class="ti ti-brain"></i>
+                    </div>
+                    <h3>智能分析</h3>
+                    <p>深度学习算法，精准理解法律文本</p>
+                    <a href="#" class="feature-link">了解更多 →</a>
+                </div>
+                <div class="feature-card" data-feature="case-search">
+                    <div class="feature-icon">
+                        <i class="ti ti-search"></i>
+                    </div>
+                    <h3>案例检索</h3>
+                    <p>海量案例数据库，快速找到相似案例</p>
+                    <a href="#" class="feature-link">了解更多 →</a>
+                </div>
+                <div class="feature-card" data-feature="risk-assessment">
+                    <div class="feature-icon">
+                        <i class="ti ti-alert-triangle"></i>
+                    </div>
+                    <h3>风险评估</h3>
+                    <p>多维度风险分析，提前预警潜在问题</p>
+                    <a href="#" class="feature-link">了解更多 →</a>
+                </div>
+                <div class="feature-card" data-feature="document-generation">
+                    <div class="feature-icon">
+                        <i class="ti ti-file-text"></i>
+                    </div>
+                    <h3>文书生成</h3>
+                    <p>智能生成标准法律文书，提高工作效率</p>
+                    <a href="#" class="feature-link">了解更多 →</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 主要工作区 -->
+    <main class="main-content" id="mainContent" style="display: none;">
+        <div class="workspace">
+            <!-- 左侧聊天区域 -->
+            <div class="chat-container">
+                <div class="chat-header">
+                    <div class="chat-title">
+                        <h3>法律智能助手</h3>
+                        <span class="status-indicator online">在线</span>
+                    </div>
+                    <div class="chat-actions">
+                        <button class="btn-icon" id="clearChat">
+                            <i class="ti ti-trash"></i>
+                        </button>
+                        <button class="btn-icon" id="exportChat">
+                            <i class="ti ti-download"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="chat-messages" id="chatMessages">
+                    <div class="message-welcome">
+                        <div class="welcome-icon">
+                            <i class="ti ti-scale"></i>
+                        </div>
+                        <h3>欢迎使用法律智能助手</h3>
+                        <p>我可以帮助您进行法律分析、案例检索、风险评估等任务。请告诉我您需要什么帮助？</p>
+                        <div class="quick-actions">
+                            <button class="quick-action-btn" data-action="analyze-contract">
+                                <i class="ti ti-file-text"></i>
+                                分析合同
+                            </button>
+                            <button class="quick-action-btn" data-action="search-case">
+                                <i class="ti ti-search"></i>
+                                搜索案例
+                            </button>
+                            <button class="quick-action-btn" data-action="risk-assessment">
+                                <i class="ti ti-alert-triangle"></i>
+                                风险评估
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="chat-input-container">
+                    <div class="file-upload-area" id="fileUploadArea">
+                        <i class="ti ti-cloud-upload"></i>
+                        <p>拖拽文件到此处或点击上传</p>
+                        <input type="file" id="fileInput" multiple accept=".pdf,.doc,.docx,.txt" hidden>
+                    </div>
+                    <div class="chat-input-wrapper">
+                        <button class="btn-icon" id="attachBtn">
+                            <i class="ti ti-paperclip"></i>
+                        </button>
+                        <textarea 
+                            id="chatInput" 
+                            class="chat-input" 
+                            placeholder="输入您的法律问题..."
+                            rows="1"
+                        ></textarea>
+                        <button class="btn-icon btn-send" id="sendBtn">
+                            <i class="ti ti-send"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧信息面板 -->
+            <div class="info-panel" id="infoPanel">
+                <div class="panel-tabs">
+                    <button class="tab-btn active" data-tab="analysis">分析结果</button>
+                    <button class="tab-btn" data-tab="cases">相关案例</button>
+                    <button class="tab-btn" data-tab="documents">文档</button>
+                </div>
+                
+                <div class="panel-content">
+                    <div class="tab-pane active" id="analysisTab">
+                        <div class="analysis-placeholder">
+                            <i class="ti ti-chart-dots-3"></i>
+                            <p>分析结果将在这里显示</p>
+                        </div>
+                    </div>
+                    
+                    <div class="tab-pane" id="casesTab">
+                        <div class="cases-list">
+                            <!-- 案例列表将动态加载 -->
+                        </div>
+                    </div>
+                    
+                    <div class="tab-pane" id="documentsTab">
+                        <div class="documents-list">
+                            <!-- 文档列表将动态加载 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 案件侧边栏 -->
+    <aside class="case-panel" id="casePanel">
+        <div class="panel-header">
+            <h3>案件管理</h3>
+            <button class="btn-icon" id="closeCasePanel">
+                <i class="ti ti-x"></i>
+            </button>
+        </div>
+        
+        <div class="panel-search">
+            <input type="text" class="search-input" placeholder="搜索案件...">
+            <button class="btn btn-primary btn-sm" id="newCaseBtn">
+                <i class="ti ti-plus"></i>
+                新建案件
+            </button>
+        </div>
+        
+        <div class="case-list" id="caseList">
+            <!-- 案件列表将动态加载 -->
+        </div>
+    </aside>
+
+    <!-- 新建案件模态框 -->
+    <div class="modal" id="newCaseModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>创建新案件</h3>
+                <button class="btn-icon" id="closeModalBtn">
+                    <i class="ti ti-x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="newCaseForm">
+                    <div class="form-group">
+                        <label for="caseName">案件名称</label>
+                        <input type="text" id="caseName" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="caseType">案件类型</label>
+                        <select id="caseType" class="form-select" required>
+                            <option value="">请选择</option>
+                            <option value="contract">合同纠纷</option>
+                            <option value="criminal">刑事案件</option>
+                            <option value="civil">民事诉讼</option>
+                            <option value="ip">知识产权</option>
+                            <option value="corporate">公司法务</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="caseDescription">案件描述</label>
+                        <textarea id="caseDescription" class="form-textarea" rows="4" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="casePriority">优先级</label>
+                        <div class="radio-group">
+                            <label class="radio-label">
+                                <input type="radio" name="priority" value="high">
+                                <span>高</span>
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="priority" value="medium" checked>
+                                <span>中</span>
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="priority" value="low">
+                                <span>低</span>
+                            </label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelModalBtn">取消</button>
+                <button class="btn btn-primary" id="createCaseBtn">创建案件</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加载提示 -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p>正在处理中...</p>
+        </div>
+    </div>
+
+    <!-- Toast通知 -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- JavaScript文件 -->
+    <script src="js/main.js"></script>
+    <script src="js/case-panel.js"></script>
+    <script src="js/chat.js"></script>
+</body>
+</html>
