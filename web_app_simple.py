@@ -73,12 +73,28 @@ def extract_case_from_text(text: str) -> Dict:
     if not client:
         return {"error": "AI service not available"}
     
+    # Check if text is empty or too short
+    if not text or len(text.strip()) < 10:
+        return {
+            "error": "Text is empty or too short to extract meaningful information",
+            "title": "Unknown",
+            "parties": [],
+            "type": "Other",
+            "description": text[:100] if text else "No content",
+            "issues": [],
+            "facts": [],
+            "claims": []
+        }
+    
     try:
+        # Limit text to avoid token limits
+        text_to_analyze = text[:5000] if len(text) > 5000 else text
+        
         # Create a prompt for GPT-4-mini to extract case information
         prompt = f"""Analyze the following legal case description and extract structured information.
         
 Case Description:
-{text}
+{text_to_analyze}
 
 Please extract and return the following information in JSON format:
 1. title: A concise case title (if parties are mentioned, format as "Party1 v. Party2")
@@ -476,23 +492,73 @@ if workflow_step == "1️⃣ Case Input":
         
         if uploaded_file and st.button("Process Document", type="primary"):
             with st.spinner("Processing document..."):
-                # Here you would process the file
-                st.info("Document processing would extract case details")
-                # Placeholder for document processing
-                st.session_state.current_case = {
-                    "title": uploaded_file.name,
-                    "type": "document_upload",
-                    "status": "extracted"
-                }
-                st.success("✅ Document processed!")
-                
-                # Add Next Step button
-                st.markdown("---")
-                col1, col2, col3 = st.columns([1, 2, 1])
-                with col2:
-                    if st.button("➡️ Proceed to Step 2: Analysis", type="primary", use_container_width=True):
-                        st.session_state.workflow_step = "2️⃣ Analysis"
-                        st.rerun()
+                # Read the file content
+                file_content = ""
+                try:
+                    # Reset file pointer to beginning
+                    uploaded_file.seek(0)
+                    
+                    if uploaded_file.type == "text/plain" or uploaded_file.name.endswith('.txt'):
+                        file_content = uploaded_file.read().decode("utf-8")
+                    elif uploaded_file.type == "application/pdf" or uploaded_file.name.endswith('.pdf'):
+                        # For PDF files, try to extract text
+                        try:
+                            import PyPDF2
+                            import io
+                            pdf_reader = PyPDF2.PdfReader(io.BytesIO(uploaded_file.read()))
+                            file_content = ""
+                            for page_num in range(len(pdf_reader.pages)):
+                                page = pdf_reader.pages[page_num]
+                                file_content += page.extract_text()
+                        except ImportError:
+                            # If PyPDF2 not installed, try basic reading
+                            st.warning("PDF reader not available, attempting basic text extraction...")
+                            uploaded_file.seek(0)
+                            file_content = uploaded_file.read().decode("utf-8", errors="ignore")
+                    elif uploaded_file.name.endswith('.docx'):
+                        # For DOCX files, try to extract text
+                        try:
+                            import docx
+                            import io
+                            doc = docx.Document(io.BytesIO(uploaded_file.read()))
+                            file_content = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+                        except ImportError:
+                            st.warning("DOCX reader not available, attempting basic text extraction...")
+                            uploaded_file.seek(0)
+                            file_content = uploaded_file.read().decode("utf-8", errors="ignore")
+                    else:
+                        # For other file types, try to read as text
+                        file_content = uploaded_file.read().decode("utf-8", errors="ignore")
+                    
+                    # Debug: Show first 500 chars of content
+                    if file_content:
+                        st.info(f"File content preview (first 500 chars): {file_content[:500]}...")
+                    else:
+                        st.warning("File appears to be empty or could not be read")
+                    
+                    if file_content and len(file_content.strip()) > 10:  # Ensure meaningful content
+                        # Use LLM to extract case information from document
+                        extracted = extract_case_from_text(file_content)
+                        if "error" not in extracted:
+                            st.session_state.current_case = extracted
+                            st.success("✅ Document processed and case information extracted!")
+                            st.json(extracted)
+                            
+                            # Add Next Step button
+                            st.markdown("---")
+                            col1, col2, col3 = st.columns([1, 2, 1])
+                            with col2:
+                                if st.button("➡️ Proceed to Step 2: Analysis", type="primary", use_container_width=True):
+                                    st.session_state.workflow_step = "2️⃣ Case Analysis"
+                                    st.rerun()
+                        else:
+                            st.error(f"Error processing document: {extracted['error']}")
+                    else:
+                        st.error("Could not read meaningful content from the file. Please ensure the file contains text.")
+                except Exception as e:
+                    st.error(f"Error reading file: {str(e)}")
+                    import traceback
+                    st.error(f"Details: {traceback.format_exc()}")
     
     else:  # Manual Entry
         with st.form("manual_case_form"):
@@ -510,22 +576,54 @@ if workflow_step == "1️⃣ Case Input":
             
         if submit_button:
             if all([title, parties, case_type, description]):
-                st.session_state.current_case = {
-                    "title": title,
-                    "parties": parties,
-                    "type": case_type,
-                    "description": description,
-                    "issues": [i.strip() for i in key_issues.split('\n') if i.strip()]
-                }
-                st.success("✅ Case created successfully!")
+                # Combine manual entry into a text format for LLM analysis
+                combined_text = f"""
+                Case Title: {title}
+                Parties Involved: {parties}
+                Case Type: {case_type}
+                Case Description: {description}
+                Key Legal Issues: {key_issues}
+                """
                 
-                # Add Next Step button
-                st.markdown("---")
-                col1, col2, col3 = st.columns([1, 2, 1])
-                with col2:
-                    if st.button("➡️ Proceed to Step 2: Analysis", type="primary", use_container_width=True):
-                        st.session_state.workflow_step = "2️⃣ Analysis"
-                        st.rerun()
+                with st.spinner("Analyzing and structuring case information..."):
+                    # Use LLM to properly structure and analyze the case
+                    extracted = extract_case_from_text(combined_text)
+                    
+                    if "error" not in extracted:
+                        # Merge manual data with LLM analysis
+                        extracted["title"] = title  # Keep original title
+                        extracted["parties"] = parties  # Keep original parties
+                        
+                        st.session_state.current_case = extracted
+                        st.success("✅ Case created and analyzed successfully!")
+                        st.json(extracted)
+                        
+                        # Add Next Step button
+                        st.markdown("---")
+                        col1, col2, col3 = st.columns([1, 2, 1])
+                        with col2:
+                            if st.button("➡️ Proceed to Step 2: Analysis", type="primary", use_container_width=True):
+                                st.session_state.workflow_step = "2️⃣ Case Analysis"
+                                st.rerun()
+                    else:
+                        # Fallback to basic structure if LLM fails
+                        st.session_state.current_case = {
+                            "title": title,
+                            "parties": parties,
+                            "type": case_type,
+                            "description": description,
+                            "issues": [i.strip() for i in key_issues.split('\n') if i.strip()]
+                        }
+                        st.warning("⚠️ AI analysis unavailable, using basic structure")
+                        st.success("✅ Case created successfully!")
+                        
+                        # Add Next Step button
+                        st.markdown("---")
+                        col1, col2, col3 = st.columns([1, 2, 1])
+                        with col2:
+                            if st.button("➡️ Proceed to Step 2: Analysis", type="primary", use_container_width=True):
+                                st.session_state.workflow_step = "2️⃣ Case Analysis"
+                                st.rerun()
             else:
                 st.error("Please fill all required fields")
 
