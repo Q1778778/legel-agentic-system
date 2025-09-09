@@ -30,6 +30,12 @@ class MCPServerType(str, Enum):
     LAWYER_SERVER = "lawyer_server"
 
 
+class StorageBackend(str, Enum):
+    """Storage backend types."""
+    MEMORY = "memory"
+    REDIS = "redis"
+
+
 class MCPConnectionState(str, Enum):
     """Connection states for MCP servers."""
     DISCONNECTED = "disconnected"

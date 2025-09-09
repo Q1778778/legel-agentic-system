@@ -7,6 +7,7 @@ import structlog
 from tenacity import retry, stop_after_attempt, wait_exponential
 from datetime import datetime
 import json
+import time
 
 from ..core.config import settings
 from ..models.schemas import (
@@ -25,13 +26,30 @@ class GraphDB:
     """Neo4j graph database interface."""
     
     def __init__(self):
-        """Initialize Neo4j driver."""
-        self.driver: Driver = GraphDatabase.driver(
-            settings.neo4j_uri,
-            auth=(settings.neo4j_user, settings.neo4j_password),
-        )
+        """Initialize Neo4j driver with retry logic."""
         self.database = settings.neo4j_database
+        self.driver: Driver = None
+        self._connect_with_retry()
         self._ensure_constraints()
+    
+    @retry(stop=stop_after_attempt(10), wait=wait_exponential(multiplier=1, min=4, max=30))
+    def _connect_with_retry(self):
+        """Connect to Neo4j with exponential backoff retry logic."""
+        try:
+            logger.info(f"Attempting to connect to Neo4j at {settings.neo4j_uri}")
+            self.driver = GraphDatabase.driver(
+                settings.neo4j_uri,
+                auth=(settings.neo4j_user, settings.neo4j_password),
+            )
+            # Test the connection
+            with self.driver.session(database=self.database) as session:
+                session.run("RETURN 1")
+            logger.info("Successfully connected to Neo4j")
+        except Exception as e:
+            logger.error(f"Failed to connect to Neo4j: {e}")
+            if self.driver:
+                self.driver.close()
+            raise
     
     def close(self):
         """Close database connection."""
@@ -54,7 +72,7 @@ class GraphDB:
         
         indexes = [
             "CREATE INDEX issue_title IF NOT EXISTS FOR (n:Issue) ON (n.title)",
-            "CREATE INDEX node_tenant IF NOT EXISTS FOR (n) ON (n.tenant)",
+            # Removed invalid generic index - specific indexes per node type are more efficient
             "CREATE INDEX case_jurisdiction IF NOT EXISTS FOR (n:Case) ON (n.jurisdiction)",
             "CREATE INDEX case_filed_date IF NOT EXISTS FOR (n:Case) ON (n.filed_date)",
             "CREATE INDEX lawyer_name IF NOT EXISTS FOR (n:Lawyer) ON (n.name)",

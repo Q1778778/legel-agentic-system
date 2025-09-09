@@ -40,14 +40,37 @@ check_command() {
 # Cleanup function
 cleanup() {
     print_info "Stopping services..."
-    docker-compose -f docker-compose.fast.yml down
+    
+    # Stop all Streamlit instances
     if [ ! -z "$STREAMLIT_PID" ]; then
         kill $STREAMLIT_PID 2>/dev/null || true
     fi
+    if [ ! -z "$STREAMLIT_8502_PID" ]; then
+        kill $STREAMLIT_8502_PID 2>/dev/null || true
+    fi
+    if [ ! -z "$STREAMLIT_8503_PID" ]; then
+        kill $STREAMLIT_8503_PID 2>/dev/null || true
+    fi
+    if [ ! -z "$STREAMLIT_8504_PID" ]; then
+        kill $STREAMLIT_8504_PID 2>/dev/null || true
+    fi
+    
+    # Stop FastAPI
+    if [ ! -z "$FASTAPI_PID" ]; then
+        kill $FASTAPI_PID 2>/dev/null || true
+    fi
+    
+    # Stop NLWeb
     if [ ! -z "$NLWEB_PID" ]; then
         kill $NLWEB_PID 2>/dev/null || true
     fi
-    print_success "Services stopped"
+    
+    # Stop Docker containers if they exist
+    if command -v docker-compose &> /dev/null; then
+        docker-compose -f docker-compose.fast.yml down 2>/dev/null || true
+    fi
+    
+    print_success "All services stopped"
 }
 
 # Set cleanup hook
@@ -209,21 +232,69 @@ main() {
     print_info "MCP servers use stdio protocol and connect on-demand"
     echo
 
-    # Start Streamlit frontend
-    print_info "Starting frontend service (Streamlit)..."
-    python3 -m streamlit run web_app.py --server.port 8501 --server.headless true &
-    STREAMLIT_PID=$!
+    # Start FastAPI backend (without Docker)
+    print_info "Starting FastAPI backend service..."
+    if ! curl -s http://localhost:8000/api/v1/health/ > /dev/null 2>&1; then
+        python3 -m src.main > /tmp/fastapi.log 2>&1 &
+        FASTAPI_PID=$!
+        
+        # Wait for FastAPI to start
+        sleep 3
+        
+        if curl -s http://localhost:8000/api/v1/health/ > /dev/null 2>&1; then
+            print_success "FastAPI backend started successfully"
+        else
+            print_warning "FastAPI backend failed to start (check /tmp/fastapi.log)"
+        fi
+    else
+        print_success "FastAPI backend already running"
+    fi
+    echo
     
-    # Wait for Streamlit to start
-    sleep 3
+    # Start all Streamlit frontends
+    print_info "Starting frontend services..."
     
-    # Check if Streamlit started successfully
-    if ! ps -p $STREAMLIT_PID > /dev/null; then
-        print_error "Streamlit failed to start"
-        exit 1
+    # Start enhanced version (8502)
+    if ! curl -s http://localhost:8502 > /dev/null 2>&1; then
+        python3 -m streamlit run web_app_enhanced.py --server.port 8502 --server.headless true > /tmp/streamlit_8502.log 2>&1 &
+        STREAMLIT_8502_PID=$!
+        sleep 2
+        print_success "Enhanced Case Management UI started (port 8502)"
+    else
+        print_success "Enhanced UI already running (port 8502)"
     fi
     
-    print_success "Frontend service started successfully"
+    # Start MCP integrated version (8503)
+    if ! curl -s http://localhost:8503 > /dev/null 2>&1; then
+        python3 -m streamlit run web_app_mcp_integrated.py --server.port 8503 --server.headless true > /tmp/streamlit_8503.log 2>&1 &
+        STREAMLIT_8503_PID=$!
+        sleep 2
+        print_success "MCP Integrated UI started (port 8503)"
+    else
+        print_success "MCP Integrated UI already running (port 8503)"
+    fi
+    
+    # Start Apple style version (8504)
+    if ! curl -s http://localhost:8504 > /dev/null 2>&1; then
+        python3 -m streamlit run web_app_apple.py --server.port 8504 --server.headless true > /tmp/streamlit_8504.log 2>&1 &
+        STREAMLIT_8504_PID=$!
+        sleep 2
+        print_success "Apple Style UI started (port 8504)"
+    else
+        print_success "Apple Style UI already running (port 8504)"
+    fi
+    
+    # Start original version (8501) - optional
+    if ! curl -s http://localhost:8501 > /dev/null 2>&1; then
+        python3 -m streamlit run web_app.py --server.port 8501 --server.headless true > /tmp/streamlit_8501.log 2>&1 &
+        STREAMLIT_PID=$!
+        sleep 2
+        print_success "Original UI started (port 8501)"
+    else
+        print_success "Original UI already running (port 8501)"
+    fi
+    
+    print_success "All frontend services started successfully"
     echo
 
     # Display access information
@@ -231,8 +302,11 @@ main() {
     print_success "System startup complete!"
     echo "======================================"
     echo
-    echo "Access URLs:"
-    echo "  - Frontend UI: http://localhost:8501"
+    echo "🌐 Access URLs:"
+    echo "  - Enhanced Case Management: http://localhost:8502 (推荐)"
+    echo "  - MCP Integrated UI: http://localhost:8503"
+    echo "  - Apple Style UI: http://localhost:8504"
+    echo "  - Original UI: http://localhost:8501"
     echo "  - API Documentation: http://localhost:8000/docs"
     if [ ! -z "$NLWEB_PID" ]; then
         echo "  - NLWeb Interface: http://localhost:8080"
@@ -240,21 +314,26 @@ main() {
     echo "  - Neo4j Browser: http://localhost:7474"
     echo "  - Qdrant Dashboard: http://localhost:6333/dashboard"
     echo
-    echo "View logs:"
-    echo "  - Backend logs: docker logs -f court-argument-simulator"
-    echo "  - All containers: docker-compose -f docker-compose.fast.yml logs -f"
+    echo "📝 View logs:"
+    echo "  - FastAPI: tail -f /tmp/fastapi.log"
+    echo "  - Streamlit 8502: tail -f /tmp/streamlit_8502.log"
+    echo "  - Streamlit 8503: tail -f /tmp/streamlit_8503.log"
+    echo "  - Streamlit 8504: tail -f /tmp/streamlit_8504.log"
+    echo "  - Backend containers: docker-compose -f docker-compose.fast.yml logs -f"
     if [ ! -z "$NLWEB_PID" ]; then
-        echo "  - NLWeb logs: tail -f /tmp/nlweb.log"
+        echo "  - NLWeb: tail -f /tmp/nlweb.log"
     fi
     echo
-    echo "Stop services:"
+    echo "🛑 Stop services:"
     echo "  - Press Ctrl+C to stop all services"
     echo "  - Or run: ./stop.sh"
     echo
-    print_info "Frontend is running, press Ctrl+C to stop..."
+    print_info "All services are running, press Ctrl+C to stop..."
     
-    # Wait for user interrupt
-    wait $STREAMLIT_PID
+    # Wait for user interrupt - keep the script running
+    while true; do
+        sleep 1
+    done
 }
 
 # Run main function

@@ -40,9 +40,9 @@ class Settings(BaseSettings):
     weaviate_vector_size: int = Field(default=1536)
     
     # Neo4j Graph DB
-    neo4j_uri: str = Field(default="bolt://localhost:7687")
+    neo4j_uri: str = Field(default="bolt://neo4j:7687")  # Use Docker service name
     neo4j_user: str = Field(default="neo4j")
-    neo4j_password: str = Field(default="password")
+    neo4j_password: str = Field(default="CourtSim2024!")  # Match docker-compose.fast.yml
     neo4j_database: str = Field(default="neo4j")
     
     # OpenAI / LLM
