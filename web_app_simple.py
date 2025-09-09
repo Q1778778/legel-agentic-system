@@ -455,6 +455,14 @@ if workflow_step == "1️⃣ Case Input":
                         st.session_state.current_case = extracted
                         st.success("✅ Case information extracted!")
                         st.json(extracted)
+                        
+                        # Add Next Step button
+                        st.markdown("---")
+                        col1, col2, col3 = st.columns([1, 2, 1])
+                        with col2:
+                            if st.button("➡️ Proceed to Step 2: Analysis", type="primary", use_container_width=True):
+                                st.session_state.workflow_step = "2️⃣ Case Analysis"
+                                st.rerun()
                     else:
                         st.error(f"Error: {extracted['error']}")
             else:
@@ -476,6 +484,15 @@ if workflow_step == "1️⃣ Case Input":
                     "type": "document_upload",
                     "status": "extracted"
                 }
+                st.success("✅ Document processed!")
+                
+                # Add Next Step button
+                st.markdown("---")
+                col1, col2, col3 = st.columns([1, 2, 1])
+                with col2:
+                    if st.button("➡️ Proceed to Step 2: Analysis", type="primary", use_container_width=True):
+                        st.session_state.workflow_step = "2️⃣ Analysis"
+                        st.rerun()
     
     else:  # Manual Entry
         with st.form("manual_case_form"):
@@ -489,18 +506,28 @@ if workflow_step == "1️⃣ Case Input":
             description = st.text_area("Case Description*", height=100)
             key_issues = st.text_area("Key Legal Issues (one per line)", height=100)
             
-            if st.form_submit_button("Create Case", type="primary"):
-                if all([title, parties, case_type, description]):
-                    st.session_state.current_case = {
-                        "title": title,
-                        "parties": parties,
-                        "type": case_type,
-                        "description": description,
-                        "issues": [i.strip() for i in key_issues.split('\n') if i.strip()]
-                    }
-                    st.success("✅ Case created successfully!")
-                else:
-                    st.error("Please fill all required fields")
+            submit_button = st.form_submit_button("Create Case", type="primary")
+            
+        if submit_button:
+            if all([title, parties, case_type, description]):
+                st.session_state.current_case = {
+                    "title": title,
+                    "parties": parties,
+                    "type": case_type,
+                    "description": description,
+                    "issues": [i.strip() for i in key_issues.split('\n') if i.strip()]
+                }
+                st.success("✅ Case created successfully!")
+                
+                # Add Next Step button
+                st.markdown("---")
+                col1, col2, col3 = st.columns([1, 2, 1])
+                with col2:
+                    if st.button("➡️ Proceed to Step 2: Analysis", type="primary", use_container_width=True):
+                        st.session_state.workflow_step = "2️⃣ Analysis"
+                        st.rerun()
+            else:
+                st.error("Please fill all required fields")
 
 elif workflow_step == "2️⃣ Case Analysis":
     st.header("Step 2: Analyze Your Case")
@@ -535,6 +562,12 @@ elif workflow_step == "2️⃣ Case Analysis":
                                 st.write(f"- {p}")
                         else:
                             st.write("No precedents found")
+                        
+                        # Add Next Step button after successful analysis
+                        st.markdown("---")
+                        if st.button("➡️ Proceed to Step 3: Legal Research", type="secondary", use_container_width=True):
+                            st.session_state.workflow_step = "3️⃣ Legal Research"
+                            st.rerun()
                     else:
                         st.error(f"Analysis failed: {analysis['error']}")
         
@@ -587,6 +620,12 @@ elif workflow_step == "3️⃣ Legal Research":
                             
                             st.markdown("**Summary:**")
                             st.write(case.get('summary', 'No summary available'))
+                    
+                    # Add Next Step button after finding cases
+                    st.markdown("---")
+                    if st.button("➡️ Proceed to Step 4: AI Consultation", type="secondary", use_container_width=True):
+                        st.session_state.workflow_step = "4️⃣ AI Consultation"
+                        st.rerun()
                 else:
                     st.warning("No similar cases found")
     
