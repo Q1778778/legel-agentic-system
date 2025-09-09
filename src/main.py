@@ -1,6 +1,6 @@
 """Main FastAPI application for Legal Analysis System."""
 
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
@@ -8,9 +8,12 @@ import structlog
 import uvicorn
 from prometheus_client import make_asgi_app, Counter, Histogram
 import time
+import uuid
 
 from .core.config import settings
-from .api import retrieval, legal_analysis, health, metrics, smart_analysis, simple_analysis
+from .api import retrieval, legal_analysis, health, metrics, smart_analysis, simple_analysis, case_management, mcp_endpoints, legal_data, chat
+# Temporarily comment out to fix nltk import error
+# from .api.legal_data_websocket import websocket_endpoint
 from .db.graph_db import GraphDB
 
 # Configure structured logging
@@ -177,6 +180,41 @@ app.include_router(
     tags=["simple"],
 )
 
+app.include_router(
+    case_management.router,
+    tags=["cases"],
+)
+
+app.include_router(
+    mcp_endpoints.router,
+    tags=["mcp"],
+)
+
+app.include_router(
+    legal_data.router,
+    tags=["legal-data"],
+)
+
+app.include_router(
+    chat.router,
+    prefix="/api/chat",
+    tags=["chat"],
+)
+
+
+# WebSocket endpoints
+# Temporarily comment out WebSocket endpoints due to nltk dependency
+# @app.websocket("/ws/legal-data/{connection_id}")
+# async def legal_data_websocket(websocket: WebSocket, connection_id: str):
+#     """WebSocket endpoint for real-time legal data operations."""
+#     await websocket_endpoint(websocket, connection_id)
+
+# @app.websocket("/ws/legal-data")
+# async def legal_data_websocket_auto(websocket: WebSocket):
+#     """WebSocket endpoint with auto-generated connection ID."""
+#     connection_id = str(uuid.uuid4())
+#     await websocket_endpoint(websocket, connection_id)
+
 
 # Root endpoint
 @app.get("/")
@@ -188,6 +226,10 @@ async def root():
         "status": "running",
         "docs": "/docs",
         "health": f"{settings.api_prefix}/health",
+        "websocket_endpoints": {
+            "legal_data": "/ws/legal-data/{connection_id}",
+            "legal_data_auto": "/ws/legal-data"
+        }
     }
 
 

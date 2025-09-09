@@ -288,3 +288,193 @@ class AnalysisResponse(BaseModel):
                 "generation_time_ms": 3500
             }
         }
+
+
+# Case Management Models
+
+class CaseStatusType(str, Enum):
+    """Case status types."""
+    DRAFT = "draft"
+    ACTIVE = "active"
+    CLOSED = "closed"
+    ARCHIVED = "archived"
+
+
+class CaseParty(BaseModel):
+    """Party in a legal case."""
+    name: str
+    role: str  # plaintiff, defendant, witness, etc.
+    contact_info: Optional[str] = None
+    represented_by: Optional[str] = None
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "name": "John Doe",
+                "role": "plaintiff",
+                "contact_info": "john.doe@email.com",
+                "represented_by": "Smith & Associates"
+            }
+        }
+
+
+class CaseCourtInfo(BaseModel):
+    """Court information for a case."""
+    name: str
+    jurisdiction: str
+    judge_name: Optional[str] = None
+    case_number: Optional[str] = None
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "name": "Superior Court of California",
+                "jurisdiction": "California",
+                "judge_name": "Hon. Jane Smith",
+                "case_number": "CV-2024-001234"
+            }
+        }
+
+
+class CaseDocument(BaseModel):
+    """Document attached to a case."""
+    id: str
+    filename: str
+    file_type: str
+    upload_date: datetime
+    extracted_data: Optional[Dict[str, Any]] = None
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "id": "doc_123",
+                "filename": "contract.pdf",
+                "file_type": "pdf",
+                "upload_date": "2024-01-20T10:00:00Z",
+                "extracted_data": {"key_terms": ["delivery", "payment"]}
+            }
+        }
+
+
+class CaseTimeline(BaseModel):
+    """Timeline entry for a case."""
+    id: str
+    date: datetime
+    event_type: str
+    description: str
+    created_by: Optional[str] = None
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "id": "timeline_123",
+                "date": "2024-01-20T10:00:00Z",
+                "event_type": "case_created",
+                "description": "Case created via chat extraction",
+                "created_by": "user_123"
+            }
+        }
+
+
+class CaseCreate(BaseModel):
+    """Request model for creating a new case."""
+    title: str
+    description: Optional[str] = None
+    parties: List[CaseParty] = Field(default_factory=list)
+    court_info: Optional[CaseCourtInfo] = None
+    issues: List[str] = Field(default_factory=list)
+    extraction_method: Optional[str] = None  # "chat" or "file"
+    extraction_session_id: Optional[str] = None
+    created_by: Optional[str] = None
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "title": "Contract Dispute - ABC Corp vs XYZ Inc",
+                "description": "Breach of contract claim involving late delivery",
+                "parties": [
+                    {
+                        "name": "ABC Corp",
+                        "role": "plaintiff",
+                        "represented_by": "Johnson & Associates"
+                    }
+                ],
+                "court_info": {
+                    "name": "Superior Court",
+                    "jurisdiction": "California"
+                },
+                "issues": ["contract_breach", "damages"],
+                "extraction_method": "chat"
+            }
+        }
+
+
+class CaseUpdate(BaseModel):
+    """Request model for updating a case."""
+    title: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[CaseStatusType] = None
+    parties: Optional[List[CaseParty]] = None
+    court_info: Optional[CaseCourtInfo] = None
+    issues: Optional[List[str]] = None
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "title": "Updated Contract Dispute Title",
+                "status": "active",
+                "issues": ["contract_breach", "damages", "attorney_fees"]
+            }
+        }
+
+
+class CaseResponse(BaseModel):
+    """Response model for case operations."""
+    id: str
+    title: str
+    description: Optional[str] = None
+    status: CaseStatusType = CaseStatusType.DRAFT
+    parties: List[CaseParty] = Field(default_factory=list)
+    court_info: Optional[CaseCourtInfo] = None
+    issues: List[str] = Field(default_factory=list)
+    documents: List[CaseDocument] = Field(default_factory=list)
+    timeline: List[CaseTimeline] = Field(default_factory=list)
+    extraction_method: Optional[str] = None
+    extraction_session_id: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    created_by: Optional[str] = None
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "id": "case_123",
+                "title": "Contract Dispute - ABC Corp vs XYZ Inc",
+                "description": "Breach of contract claim",
+                "status": "active",
+                "parties": [],
+                "issues": ["contract_breach"],
+                "documents": [],
+                "timeline": [],
+                "created_at": "2024-01-20T10:00:00Z",
+                "updated_at": "2024-01-20T10:00:00Z"
+            }
+        }
+
+
+class CaseListResponse(BaseModel):
+    """Response model for listing cases."""
+    cases: List[CaseResponse]
+    total_count: int
+    skip: int
+    limit: int
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "cases": [],
+                "total_count": 10,
+                "skip": 0,
+                "limit": 20
+            }
+        }

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NLWeb Chat Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: #007bff;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .chat-area {
+            height: 400px;
+            padding: 20px;
+            overflow-y: auto;
+            border-bottom: 1px solid #eee;
+        }
+        .message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .user-message {
+            background: #e3f2fd;
+            margin-left: 20px;
+        }
+        .bot-message {
+            background: #f1f8e9;
+            margin-right: 20px;
+        }
+        .input-area {
+            padding: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        #messageInput {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #sendButton {
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        #sendButton:hover {
+            background: #0056b3;
+        }
+        .status {
+            padding: 10px 20px;
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            margin: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏛️ Legal Analysis Chat Demo</h1>
+            <p>Simulated NLWeb Chat Interface</p>
+        </div>
+        
+        <div class="status" id="status">
+            Status: Ready to chat about legal cases and analysis
+        </div>
+        
+        <div class="chat-area" id="chatArea">
+            <div class="bot-message">
+                <strong>Legal AI Assistant:</strong> Hello! I'm your legal analysis assistant. You can ask me about:
+                <ul>
+                    <li>Legal case analysis and precedents</li>
+                    <li>Contract interpretation and disputes</li>
+                    <li>Court procedures and legal strategies</li>
+                    <li>Intellectual property matters</li>
+                </ul>
+                What legal question can I help you with today?
+            </div>
+        </div>
+        
+        <div class="input-area">
+            <input type="text" id="messageInput" placeholder="Ask a legal question..." />
+            <button id="sendButton">Send</button>
+        </div>
+    </div>
+
+    <script>
+        const chatArea = document.getElementById('chatArea');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const status = document.getElementById('status');
+
+        // Simulated responses for demo purposes
+        const responses = {
+            'hello': "Hello! I'm here to help with your legal questions. What would you like to know?",
+            'contract': "Regarding contracts, I can help you understand breach conditions, remedies, and enforcement. What specific contract issue are you facing?",
+            'intellectual property': "IP law covers patents, trademarks, copyrights, and trade secrets. Are you dealing with infringement, registration, or licensing issues?",
+            'court': "Court procedures vary by jurisdiction and case type. Are you asking about civil litigation, criminal proceedings, or appellate processes?",
+            'default': "That's an interesting legal question. In a real implementation, I would search through case databases, analyze precedents, and provide detailed legal analysis based on the GraphRAG system. For now, this is a demonstration of the chat interface functionality."
+        };
+
+        function addMessage(text, isUser = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+            messageDiv.innerHTML = `<strong>${isUser ? 'You' : 'Legal AI Assistant'}:</strong> ${text}`;
+            chatArea.appendChild(messageDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        function getResponse(userMessage) {
+            const lowerMessage = userMessage.toLowerCase();
+            for (const [key, response] of Object.entries(responses)) {
+                if (lowerMessage.includes(key)) {
+                    return response;
+                }
+            }
+            return responses.default;
+        }
+
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            // Add user message
+            addMessage(message, true);
+            messageInput.value = '';
+
+            // Show typing indicator
+            status.textContent = 'Status: AI is thinking...';
+            sendButton.disabled = true;
+
+            // Simulate AI response delay
+            setTimeout(() => {
+                const response = getResponse(message);
+                addMessage(response);
+                status.textContent = 'Status: Ready for next question';
+                sendButton.disabled = false;
+                messageInput.focus();
+            }, 1000 + Math.random() * 2000); // 1-3 second delay
+        }
+
+        sendButton.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // Focus on input
+        messageInput.focus();
+    </script>
+</body>
+</html>

@@ -5,7 +5,7 @@ uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 
 # Database Clients
-qdrant-client==1.7.0
+weaviate-client==4.9.3
 neo4j==5.15.0
 redis==5.0.1
 
@@ -22,7 +22,7 @@ python-dotenv==1.0.0
 
 # HTTP Client
 httpx==0.25.2
-tenacity==8.2.3
+tenacity==9.0.0
 
 # Logging
 structlog==23.2.0
@@ -32,3 +32,4 @@ prometheus-client==0.19.0
 
 # Frontend (optional)
 streamlit==1.29.0
+graphrag==0.5.0
